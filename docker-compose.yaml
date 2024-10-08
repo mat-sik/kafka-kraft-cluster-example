@@ -13,6 +13,10 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,BROKER:PLAINTEXT
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@controller-1:9093,2@controller-2:9093,3@controller-3:9093
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    volumes:
+      - controller-1-data:/var/lib/kafka/data
+      - controller-1-secrets:/etc/kafka/secrets
+      - controller-1-config:/mnt/shared/config
 
   controller-2:
     image: apache/kafka:latest
@@ -28,6 +32,10 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,BROKER:PLAINTEXT
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@controller-1:9093,2@controller-2:9093,3@controller-3:9093
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    volumes:
+      - controller-2-data:/var/lib/kafka/data
+      - controller-2-secrets:/etc/kafka/secrets
+      - controller-2-config:/mnt/shared/config
 
   controller-3:
     image: apache/kafka:latest
@@ -43,6 +51,10 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,BROKER:PLAINTEXT
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@controller-1:9093,2@controller-2:9093,3@controller-3:9093
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    volumes:
+      - controller-3-data:/var/lib/kafka/data
+      - controller-3-secrets:/etc/kafka/secrets
+      - controller-3-config:/mnt/shared/config
 
   broker-1:
     image: apache/kafka:latest
@@ -61,6 +73,10 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,BROKER:PLAINTEXT,CLIENT:PLAINTEXT
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@controller-1:9093,2@controller-2:9093,3@controller-3:9093
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    volumes:
+      - broker-1-data:/var/lib/kafka/data
+      - broker-1-secrets:/etc/kafka/secrets
+      - broker-1-config:/mnt/shared/config
     depends_on:
       - controller-1
       - controller-2
@@ -83,6 +99,10 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,BROKER:PLAINTEXT,CLIENT:PLAINTEXT
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@controller-1:9093,2@controller-2:9093,3@controller-3:9093
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    volumes:
+      - broker-2-data:/var/lib/kafka/data
+      - broker-2-secrets:/etc/kafka/secrets
+      - broker-2-config:/mnt/shared/config
     depends_on:
       - controller-1
       - controller-2
@@ -105,10 +125,39 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,BROKER:PLAINTEXT,CLIENT:PLAINTEXT
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@controller-1:9093,2@controller-2:9093,3@controller-3:9093
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    volumes:
+      - broker-3-data:/var/lib/kafka/data
+      - broker-3-secrets:/etc/kafka/secrets
+      - broker-3-config:/mnt/shared/config
     depends_on:
       - controller-1
       - controller-2
       - controller-3
+
+volumes:
+  controller-1-data:
+  controller-1-secrets:
+  controller-1-config:
+
+  controller-2-data:
+  controller-2-secrets:
+  controller-2-config:
+
+  controller-3-data:
+  controller-3-secrets:
+  controller-3-config:
+
+  broker-1-data:
+  broker-1-secrets:
+  broker-1-config:
+
+  broker-2-data:
+  broker-2-secrets:
+  broker-2-config:
+
+  broker-3-data:
+  broker-3-secrets:
+  broker-3-config:
 
 networks:
   net:
