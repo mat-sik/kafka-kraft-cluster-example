@@ -13,6 +13,8 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.context.annotation.Bean;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -20,8 +22,6 @@ import java.util.concurrent.Future;
 @SpringBootApplication
 @ConfigurationPropertiesScan
 public class KafkaProducerApplication {
-
-	private static final Duration SLEEP_DURATION = Duration.ofMillis(100);
 
 	public static void main(String[] args) {
 		SpringApplication.run(KafkaProducerApplication.class, args);
@@ -33,9 +33,11 @@ public class KafkaProducerApplication {
 			Producer<String, String> kafkaProducer
 	) {
 		return _ -> {
-			String topicName = "my-topic";
+			var topicName = "my-topic";
 			createTopic(admin, topicName);
-			continuousProduce(kafkaProducer, topicName);
+
+			var continuousProducer = new ContinuousProducer(kafkaProducer, topicName);
+			continuousProducer.run();
 		};
 	}
 
@@ -47,22 +49,6 @@ public class KafkaProducerApplication {
 		CreateTopicsResult future = admin.createTopics(List.of(topic));
 
 		future.all();
-	}
-
-	private void continuousProduce(
-			Producer<String, String> kafkaProducer,
-			String topicName
-	) throws ExecutionException, InterruptedException {
-		for (int i = 0; i < 100_000; i++) {
-			String value = String.valueOf(i);
-			ProducerRecord<String, String> record = new ProducerRecord<>(topicName, value, value);
-
-			Future<RecordMetadata> future = kafkaProducer.send(record);
-
-			future.get();
-
-			Thread.sleep(SLEEP_DURATION);
-		}
 	}
 
 }
