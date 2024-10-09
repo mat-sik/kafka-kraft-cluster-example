@@ -1,6 +1,6 @@
 services:
   controller-1:
-    image: apache/kafka:latest
+    image: apache/kafka:3.8.0
     container_name: controller-1
     hostname: controller-1
     networks:
@@ -20,7 +20,7 @@ services:
       - controller-1-config:/mnt/shared/config
 
   controller-2:
-    image: apache/kafka:latest
+    image: apache/kafka:3.8.0
     container_name: controller-2
     hostname: controller-2
     networks:
@@ -40,7 +40,7 @@ services:
       - controller-2-config:/mnt/shared/config
 
   controller-3:
-    image: apache/kafka:latest
+    image: apache/kafka:3.8.0
     container_name: controller-3
     hostname: controller-3
     networks:
@@ -60,7 +60,7 @@ services:
       - controller-3-config:/mnt/shared/config
 
   broker-1:
-    image: apache/kafka:latest
+    image: apache/kafka:3.8.0
     container_name: broker-1
     hostname: broker-1
     networks:
@@ -87,7 +87,7 @@ services:
       - controller-3
 
   broker-2:
-    image: apache/kafka:latest
+    image: apache/kafka:3.8.0
     container_name: broker-2
     hostname: broker-2
     networks:
@@ -114,7 +114,7 @@ services:
       - controller-3
 
   broker-3:
-    image: apache/kafka:latest
+    image: apache/kafka:3.8.0
     container_name: broker-3
     hostname: broker-3
     networks:
