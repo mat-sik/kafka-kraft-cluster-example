@@ -1,6 +1,6 @@
 spring:
   application:
-    name: kafka-publisher
+    name: kafka-producer
 
 kafka:
   clientId: publisher

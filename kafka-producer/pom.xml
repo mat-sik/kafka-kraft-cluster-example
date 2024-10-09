@@ -9,9 +9,9 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.github.mat-sik</groupId>
-	<artifactId>kafka-publisher</artifactId>
+	<artifactId>kafka-producer</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>kafka-publisher</name>
+	<name>kafka-producer</name>
 	<description>Demo project for Spring Boot</description>
 
 	<properties>

@@ -1,4 +1,4 @@
-package com.github.mat_sik.kafka_publisher;
+package com.github.mat_sik.kafka_producer;
 
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.CreateTopicsResult;
@@ -6,12 +6,10 @@ import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
-import org.apache.kafka.common.KafkaFuture;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 
 import java.time.Duration;
@@ -21,12 +19,12 @@ import java.util.concurrent.Future;
 
 @SpringBootApplication
 @ConfigurationPropertiesScan
-public class KafkaPublisherApplication {
+public class KafkaProducerApplication {
 
 	private static final Duration SLEEP_DURATION = Duration.ofMillis(100);
 
 	public static void main(String[] args) {
-		SpringApplication.run(KafkaPublisherApplication.class, args);
+		SpringApplication.run(KafkaProducerApplication.class, args);
 	}
 
 	@Bean

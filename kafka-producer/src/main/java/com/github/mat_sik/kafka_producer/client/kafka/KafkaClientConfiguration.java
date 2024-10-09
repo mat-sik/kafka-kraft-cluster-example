@@ -1,4 +1,4 @@
-package com.github.mat_sik.kafka_publisher.client.kafka;
+package com.github.mat_sik.kafka_producer.client.kafka;
 
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.AdminClientConfig;

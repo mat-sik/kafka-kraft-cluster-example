@@ -1,7 +1,7 @@
 # Read Me First
 The following was discovered as part of building this project:
 
-* The original package name 'com.github.mat-sik.kafka-publisher' is invalid and this project uses 'com.github.mat_sik.kafka_publisher' instead.
+* The original package name 'com.github.mat-sik.kafka-publisher' is invalid and this project uses 'com.github.mat_sik.kafka_producer' instead.
 
 # Getting Started
 
