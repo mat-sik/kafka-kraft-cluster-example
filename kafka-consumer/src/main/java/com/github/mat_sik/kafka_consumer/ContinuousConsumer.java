@@ -3,18 +3,21 @@ package com.github.mat_sik.kafka_consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
 
 import java.time.Duration;
 import java.util.Collection;
+import java.util.List;
 import java.util.Properties;
+import java.util.Set;
 import java.util.logging.Logger;
 
 public class ContinuousConsumer implements Runnable {
 
     private static final Logger LOGGER = Logger.getLogger(ContinuousConsumer.class.getName());
 
-    private static final Duration POLL_DURATION = Duration.ofMillis(100);
+    private static final Duration POLL_DURATION = Duration.ofSeconds(10);
 
     private final KafkaConsumer<String, String> consumer;
     private final Collection<String> topicNames;
@@ -42,11 +45,26 @@ public class ContinuousConsumer implements Runnable {
         for (; ; ) {
             // After wakeup() was called on consumer, poll() will throw WakeupException.
             ConsumerRecords<String, String> records = consumer.poll(POLL_DURATION);
-            for (ConsumerRecord<String, String> record : records) {
-                System.out.println(record);
+            if (!records.isEmpty()) {
+                logPartitionData(records);
             }
             consumer.commitSync();
         }
+    }
+
+    private void logPartitionData(ConsumerRecords<String, String> records) {
+        LOGGER.info("### NEW BATCH ###");
+
+        Set<TopicPartition> partitions = records.partitions();
+        for (TopicPartition partition : partitions) {
+            int partitionNumber = partition.partition();
+            LOGGER.info("## PARTITION: " + partitionNumber + " ##");
+
+            List<ConsumerRecord<String, String>> partitionRecords = records.records(partition);
+            partitionRecords.forEach(record -> LOGGER.info("# record: " + record + " #"));
+        }
+
+        LOGGER.info("### END BATCH ###");
     }
 
     public void shutdown() {
