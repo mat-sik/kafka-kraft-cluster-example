@@ -24,7 +24,7 @@ public class ContinuousProducer {
     }
 
     public void run() throws ExecutionException, InterruptedException {
-        for (; ;) {
+        for (; ; ) {
             String key = getCurrentDateTimeAsString();
             ProducerRecord<String, String> record = new ProducerRecord<>(topicName, key, key);
 
