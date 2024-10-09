@@ -3,7 +3,7 @@
 Simple project used for learning the process of deploying kafka cluster and creating
 simple publisher and  consumer.
 
-## docker-compose.yaml detials
+## docker-compose.yaml details
 
 In Kafka, listeners are just channels names that are used to communicate with
 kafka nodes. The channels are used for inner broker communication - BROKER, 
