@@ -1,7 +1,16 @@
-listeners are just channel names used to define channels for nodes to communicate.
+# kafka-kraft-cluster-example
 
-The names CONTROLLER, BROKER, CLIENT are custom.
+Simple project used for learning the process of deploying kafka cluster and creating
+simple publisher and  consumer.
 
-to defien channels names use security_protocol_map
+## docker-compose.yaml detials
 
-advertised listeners are listeners that will be shared with other nodes(so that everyone knows the names)
+In Kafka, listeners are just channels names that are used to communicate with
+kafka nodes. The channels are used for inner broker communication - BROKER, 
+kraft controller node communication - CONTROLLER and client app communication - CLIENT.
+
+These three names are custom and can be arbitrary.
+
+To define these channels, they should be defined in security_protocol_map.
+
+Advertised listeners are listeners name that will be shared between nodes in the cluster.
