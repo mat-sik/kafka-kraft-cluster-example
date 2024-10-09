@@ -3,5 +3,5 @@ spring:
     name: kafka-producer
 
 kafka:
-  clientId: publisher
+  clientId: producer
   hosts: localhost:29092,localhost:39092,localhost:49092
