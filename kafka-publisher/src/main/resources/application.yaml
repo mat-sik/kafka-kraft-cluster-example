@@ -1,3 +1,7 @@
 spring:
   application:
     name: kafka-publisher
+
+kafka:
+  clientId: publisher
+  hosts: localhost:29092,localhost:39092,localhost:49092
