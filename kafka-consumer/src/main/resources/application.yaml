@@ -1,3 +1,8 @@
 spring:
   application:
     name: kafka-consumer
+
+kafka:
+  clientId: producer
+  hosts: localhost:29092,localhost:39092,localhost:49092
+  groupId: my-topic-consumers
