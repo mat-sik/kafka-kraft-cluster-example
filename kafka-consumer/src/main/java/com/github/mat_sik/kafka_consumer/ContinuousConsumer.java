@@ -51,10 +51,12 @@ public class ContinuousConsumer implements Runnable {
             if (!seekPerformed) {
                 seekPerformed = performSeek();
             }
-            if (!records.isEmpty()) {
-                logPartitionData(records);
+            if (seekPerformed) {
+                if (!records.isEmpty()) {
+                    logPartitionData(records);
+                }
+                consumer.commitSync();
             }
-            consumer.commitSync();
         }
     }
 
