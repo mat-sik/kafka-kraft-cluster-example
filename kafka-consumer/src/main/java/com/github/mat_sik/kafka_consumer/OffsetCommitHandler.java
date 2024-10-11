@@ -14,9 +14,9 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Semaphore;
 import java.util.logging.Logger;
 
-public class OffsetCommiter {
+public class OffsetCommitHandler {
 
-    private static final Logger LOGGER = Logger.getLogger(OffsetCommiter.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(OffsetCommitHandler.class.getName());
 
     // keeps track of offsets that are ready to be commited per partition.
     private final Map<TopicPartition, Map<Long, Long>> uncommitedOffsets;
@@ -27,7 +27,7 @@ public class OffsetCommiter {
     private final ConcurrentLinkedQueue<Map<TopicPartition, OffsetAndMetadata>> commitQueue;
     private final Semaphore mutex;
 
-    public OffsetCommiter(
+    public OffsetCommitHandler(
             Map<TopicPartition, OffsetAndMetadata> commited,
             ConcurrentLinkedQueue<Map<TopicPartition, OffsetAndMetadata>> commitQueue
     ) {

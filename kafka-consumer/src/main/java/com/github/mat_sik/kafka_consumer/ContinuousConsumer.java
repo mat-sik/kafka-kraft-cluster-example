@@ -8,7 +8,6 @@ import org.apache.kafka.common.errors.WakeupException;
 
 import java.time.Duration;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -90,7 +89,7 @@ public class ContinuousConsumer implements Runnable {
             consumer.seek(topicPartition, offset);
         }));
 
-        var offsetCommiter = new OffsetCommiter(commited, commitQueue);
+        var offsetCommiter = new OffsetCommitHandler(commited, commitQueue);
 
         Thread.ofVirtual().name("processor-1").start(new RecordBatchProcessor(recordBatchQueue, offsetCommiter));
         Thread.ofVirtual().name("processor-2").start(new RecordBatchProcessor(recordBatchQueue, offsetCommiter));
