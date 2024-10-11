@@ -11,9 +11,11 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.context.annotation.Bean;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 @SpringBootApplication
 @ConfigurationPropertiesScan
@@ -29,34 +31,42 @@ public class KafkaProducerApplication {
             Producer<String, String> kafkaProducer
     ) {
         return _ -> {
-            var topicName = "my-topic";
-            ensureTopicExists(admin, topicName);
+            String topicName = "my-topic";
+            List<String> topicNames = List.of(topicName);
+            ensureTopicsExists(admin, topicNames);
 
             var continuousProducer = new ContinuousProducer(kafkaProducer, topicName);
             continuousProducer.run();
         };
     }
 
-    private void ensureTopicExists(Admin admin, String name) throws ExecutionException, InterruptedException {
-        if (!topicExist(admin, name)) {
-            createTopic(admin, name);
+    private void ensureTopicsExists(Admin admin, Collection<String> names) throws ExecutionException, InterruptedException {
+        Set<String> missingNames = getMissingTopicNames(admin, names);
+        if (!missingNames.isEmpty()) {
+            createTopics(admin, names);
         }
     }
 
-    private void createTopic(Admin admin, String name) throws ExecutionException, InterruptedException {
-        int partitions = 3;
-        short replicationFactor = 3;
-        var topic = new NewTopic(name, partitions, replicationFactor);
+    private Set<String> getMissingTopicNames(Admin admin, Collection<String> names) throws ExecutionException, InterruptedException {
+        ListTopicsResult listTopics = admin.listTopics();
+        Set<String> remoteNames = listTopics.names().get();
 
-        CreateTopicsResult future = admin.createTopics(List.of(topic));
-
-        future.all().get();
+        return names.stream()
+                .filter(name -> !remoteNames.contains(name))
+                .collect(Collectors.toSet());
     }
 
-    private boolean topicExist(Admin admin, String name) throws ExecutionException, InterruptedException {
-        ListTopicsResult listTopics = admin.listTopics();
-        Set<String> names = listTopics.names().get();
-        return names.contains(name);
+    private void createTopics(Admin admin, Collection<String> names) throws ExecutionException, InterruptedException {
+        int partitions = 3;
+        short replicationFactor = 3;
+
+        List<NewTopic> topics = names.stream()
+                .map(name -> new NewTopic(name, partitions, replicationFactor))
+                .toList();
+
+        CreateTopicsResult future = admin.createTopics(topics);
+
+        future.all().get();
     }
 
 }
