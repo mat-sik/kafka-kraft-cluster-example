@@ -15,8 +15,6 @@ public class RecordBatchProcessor implements Runnable {
 
     private static final Logger LOGGER = Logger.getLogger(RecordBatchProcessor.class.getName());
 
-    private final Random random;
-
     private final BlockingQueue<ConsumerRecords<String, String>> recordBatchQueue;
     private final OffsetCommitHandler offsetCommitHandler;
 
@@ -26,8 +24,6 @@ public class RecordBatchProcessor implements Runnable {
     ) {
         this.recordBatchQueue = recordBatchQueue;
         this.offsetCommitHandler = offsetCommitHandler;
-
-        this.random = new Random();
     }
 
     @Override
@@ -35,18 +31,11 @@ public class RecordBatchProcessor implements Runnable {
         try {
             for (; ; ) {
                 ConsumerRecords<String, String> recordBatch = recordBatchQueue.take();
-                randomlySleep(0.3f);
                 logPartitionData(recordBatch);
                 offsetCommitHandler.registerBatchAsReadyToBeCommited(recordBatch);
             }
         } catch (InterruptedException ex) {
             LOGGER.info(ex.getMessage());
-        }
-    }
-
-    private void randomlySleep(float probability) throws InterruptedException {
-        if (random.nextFloat() >= 1 - probability) {
-            Thread.sleep(Duration.ofSeconds(5).toMillis());
         }
     }
 
