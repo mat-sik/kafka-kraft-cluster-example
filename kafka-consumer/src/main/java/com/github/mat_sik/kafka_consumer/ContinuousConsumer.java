@@ -17,7 +17,7 @@ public class ContinuousConsumer implements Runnable {
 
     private static final Logger LOGGER = Logger.getLogger(ContinuousConsumer.class.getName());
 
-    private static final Duration POLL_DURATION = Duration.ofSeconds(10);
+    private static final Duration POLL_DURATION = Duration.ofMillis(100);
 
     private final KafkaConsumer<String, String> consumer;
     private final Collection<String> topicNames;
@@ -56,13 +56,13 @@ public class ContinuousConsumer implements Runnable {
         LOGGER.info("### NEW BATCH ###");
 
         Set<TopicPartition> partitions = records.partitions();
-        for (TopicPartition partition : partitions) {
-            int partitionNumber = partition.partition();
+        partitions.forEach(topicPartition -> {
+            int partitionNumber = topicPartition.partition();
             LOGGER.info("## PARTITION: " + partitionNumber + " ##");
 
-            List<ConsumerRecord<String, String>> partitionRecords = records.records(partition);
+            List<ConsumerRecord<String, String>> partitionRecords = records.records(topicPartition);
             partitionRecords.forEach(record -> LOGGER.info("# record: " + record + " #"));
-        }
+        });
 
         LOGGER.info("### END BATCH ###");
     }
