@@ -53,6 +53,15 @@ public class KafkaConsumerApplication {
         }
     }
 
+    private Set<String> getMissingTopicNames(Admin admin, Collection<String> names) throws ExecutionException, InterruptedException {
+        ListTopicsResult listTopics = admin.listTopics();
+        Set<String> remoteNames = listTopics.names().get();
+
+        return names.stream()
+                .filter(name -> !remoteNames.contains(name))
+                .collect(Collectors.toSet());
+    }
+
     private void createTopics(Admin admin, Collection<String> names) throws ExecutionException, InterruptedException {
         int partitions = 3;
         short replicationFactor = 3;
@@ -64,15 +73,6 @@ public class KafkaConsumerApplication {
         CreateTopicsResult future = admin.createTopics(topics);
 
         future.all().get();
-    }
-
-    private Set<String> getMissingTopicNames(Admin admin, Collection<String> names) throws ExecutionException, InterruptedException {
-        ListTopicsResult listTopics = admin.listTopics();
-        Set<String> remoteNames = listTopics.names().get();
-
-        return names.stream()
-                .filter(name -> !remoteNames.contains(name))
-                .collect(Collectors.toSet());
     }
 
 }
