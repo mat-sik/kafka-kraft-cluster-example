@@ -38,10 +38,10 @@ public class KafkaConsumerApplication {
             String topicName = "my-topic";
             ensureTopicExists(admin, topicName);
 
-            BlockingQueue<ConsumerRecords<String, String>> recordBatchQueue = new LinkedBlockingQueue<>();
-            ConcurrentLinkedQueue<Map<TopicPartition, OffsetAndMetadata>> commitQueue = new ConcurrentLinkedQueue<>();
+            BlockingQueue<ConsumerRecords<String, String>> toProcessQueue = new LinkedBlockingQueue<>();
+            ConcurrentLinkedQueue<Map<TopicPartition, OffsetAndMetadata>> toCommitQueue = new ConcurrentLinkedQueue<>();
 
-            var continuousConsumer = new ContinuousConsumer(kafkaConsumerProperties, List.of(topicName), recordBatchQueue, commitQueue);
+            var continuousConsumer = new ContinuousConsumer(kafkaConsumerProperties, List.of(topicName), toProcessQueue, toCommitQueue);
             continuousConsumer.run();
         };
     }

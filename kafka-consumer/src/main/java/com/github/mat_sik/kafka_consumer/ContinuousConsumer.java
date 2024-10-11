@@ -24,19 +24,19 @@ public class ContinuousConsumer implements Runnable {
     private final KafkaConsumer<String, String> consumer;
     private final Collection<String> topicNames;
 
-    private final BlockingQueue<ConsumerRecords<String, String>> recordBatchQueue;
-    private final ConcurrentLinkedQueue<Map<TopicPartition, OffsetAndMetadata>> commitQueue;
+    private final BlockingQueue<ConsumerRecords<String, String>> toProcessQueue;
+    private final ConcurrentLinkedQueue<Map<TopicPartition, OffsetAndMetadata>> toCommitQueue;
 
     public ContinuousConsumer(
             Properties kafkaConsumerProperties,
             Collection<String> topicNames,
-            BlockingQueue<ConsumerRecords<String, String>> recordBatchQueue,
-            ConcurrentLinkedQueue<Map<TopicPartition, OffsetAndMetadata>> commitQueue
+            BlockingQueue<ConsumerRecords<String, String>> toProcessQueue,
+            ConcurrentLinkedQueue<Map<TopicPartition, OffsetAndMetadata>> toCommitQueue
     ) {
         this.consumer = new KafkaConsumer<>(kafkaConsumerProperties);
         this.topicNames = topicNames;
-        this.recordBatchQueue = recordBatchQueue;
-        this.commitQueue = commitQueue;
+        this.toProcessQueue = toProcessQueue;
+        this.toCommitQueue = toCommitQueue;
     }
 
     @Override
@@ -58,15 +58,16 @@ public class ContinuousConsumer implements Runnable {
             boolean processorsRunning = false;
             for (; ; ) {
                 // After wakeup() was called on consumer, poll() will throw WakeupException.
-                ConsumerRecords<String, String> recordBatch = consumer.poll(POLL_DURATION);
+                ConsumerRecords<String, String> records = consumer.poll(POLL_DURATION);
                 if (!processorsRunning) {
                     processorsRunning = setUpProcessors();
                 }
 
-                if (!recordBatch.isEmpty()) {
-                    recordBatchQueue.put(recordBatch);
+                if (!records.isEmpty()) {
+                    toProcessQueue.put(records);
                 }
-                Map<TopicPartition, OffsetAndMetadata> toCommitMap = commitQueue.poll();
+
+                Map<TopicPartition, OffsetAndMetadata> toCommitMap = toCommitQueue.poll();
                 if (toCommitMap != null) {
                     logToCommitMap(toCommitMap);
                     consumer.commitSync(toCommitMap);
@@ -85,11 +86,11 @@ public class ContinuousConsumer implements Runnable {
         }
         Map<TopicPartition, OffsetAndMetadata> commited = consumer.committed(topicPartitions);
 
-        var offsetCommiter = new OffsetCommitHandler(commited, commitQueue);
+        var offsetCommiter = new OffsetCommitHandler(commited, toCommitQueue);
 
-        Thread.ofVirtual().name("processor-1").start(new RecordBatchProcessor(recordBatchQueue, offsetCommiter));
-        Thread.ofVirtual().name("processor-2").start(new RecordBatchProcessor(recordBatchQueue, offsetCommiter));
-        Thread.ofVirtual().name("processor-3").start(new RecordBatchProcessor(recordBatchQueue, offsetCommiter));
+        Thread.ofVirtual().name("processor-1").start(new RecordBatchProcessor(toProcessQueue, offsetCommiter));
+        Thread.ofVirtual().name("processor-2").start(new RecordBatchProcessor(toProcessQueue, offsetCommiter));
+        Thread.ofVirtual().name("processor-3").start(new RecordBatchProcessor(toProcessQueue, offsetCommiter));
 
         return true;
     }

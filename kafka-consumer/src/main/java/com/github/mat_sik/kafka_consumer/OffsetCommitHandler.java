@@ -8,6 +8,7 @@ import org.apache.kafka.common.TopicPartition;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -24,78 +25,91 @@ public class OffsetCommitHandler {
     // keeps tack of offsets that need to be commited per partition.
     private final Map<TopicPartition, Long> toCommitOffsets;
 
-    private final ConcurrentLinkedQueue<Map<TopicPartition, OffsetAndMetadata>> commitQueue;
+    private final ConcurrentLinkedQueue<Map<TopicPartition, OffsetAndMetadata>> toCommitQueue;
     private final Semaphore mutex;
 
     public OffsetCommitHandler(
             Map<TopicPartition, OffsetAndMetadata> commited,
-            ConcurrentLinkedQueue<Map<TopicPartition, OffsetAndMetadata>> commitQueue
+            ConcurrentLinkedQueue<Map<TopicPartition, OffsetAndMetadata>> toCommitQueue
     ) {
         this.uncommitedOffsets = createUncommitedOffsetsTracker(commited.keySet());
         this.toCommitOffsets = createToCommitOffsetsTracker(commited);
-        this.commitQueue = commitQueue;
+        this.toCommitQueue = toCommitQueue;
         this.mutex = new Semaphore(1);
     }
 
     private static Map<TopicPartition, Map<Long, Long>> createUncommitedOffsetsTracker(Set<TopicPartition> topicPartitions) {
-        Map<TopicPartition, Map<Long, Long>> partitionsOffsetTracker = new ConcurrentHashMap<>();
+        Map<TopicPartition, Map<Long, Long>> uncommitedOffsets = new ConcurrentHashMap<>();
 
         topicPartitions.forEach(topicPartition -> {
-            Map<Long, Long> partitionOffsetTracker = new ConcurrentHashMap<>();
-            partitionsOffsetTracker.put(topicPartition, partitionOffsetTracker);
+            Map<Long, Long> offsetRanges = new ConcurrentHashMap<>();
+            uncommitedOffsets.put(topicPartition, offsetRanges);
         });
 
-        return partitionsOffsetTracker;
+        return uncommitedOffsets;
     }
 
     private static Map<TopicPartition, Long> createToCommitOffsetsTracker(Map<TopicPartition, OffsetAndMetadata> commited) {
-        Map<TopicPartition, Long> commitTracker = new HashMap<>();
+        Map<TopicPartition, Long> toCommitOffsets = new HashMap<>();
 
         commited.forEach((topicPartition, offsetAndMetadata) -> {
             long offset = offsetAndMetadata == null ? 0 : offsetAndMetadata.offset();
-            commitTracker.put(topicPartition, offset);
+            toCommitOffsets.put(topicPartition, offset);
         });
 
-        return commitTracker;
+        return toCommitOffsets;
     }
 
-    public void registerBatchAsReadyToBeCommited(ConsumerRecords<String, String> records) {
+    public void registerRecordsAndTryToCommit(ConsumerRecords<String, String> records) {
+        Map<TopicPartition, Long> offsets = registerRecords(records);
+        tryCommitOffsets(offsets);
+    }
+
+    public Map<TopicPartition, Long> registerRecords(ConsumerRecords<String, String> records) {
         Map<TopicPartition, Long> initialOffsets = new HashMap<>();
 
         Set<TopicPartition> topicPartitions = records.partitions();
         topicPartitions.forEach(topicPartition -> {
-            List<ConsumerRecord<String, String>> partitionRecords = records.records(topicPartition);
+            Map<Long, Long> offsetTracker = uncommitedOffsets.get(topicPartition);
+            List<ConsumerRecord<String, String>> batch = records.records(topicPartition);
 
-            Map<Long, Long> partitionOffsetTracker = uncommitedOffsets.get(topicPartition);
-            if (partitionOffsetTracker == null) {
-                // todo: update commit tracker under mutex
-                throw new RuntimeException("Unregistered partition number.");
-            }
-
-            ConsumerRecord<String, String> firstRecord = partitionRecords.getFirst();
-            long firstOffset = firstRecord.offset();
-
-            ConsumerRecord<String, String> lastRecord = partitionRecords.getLast();
-            long lastOffset = lastRecord.offset();
-
-            partitionOffsetTracker.put(firstOffset, lastOffset);
+            long firstOffset = registerBatch(offsetTracker, batch);
 
             initialOffsets.put(topicPartition, firstOffset);
         });
 
-        tryCommitOffsets(initialOffsets);
+        return initialOffsets;
     }
 
-    private void tryCommitOffsets(Map<TopicPartition, Long> initialOffsets) {
+    private static long registerBatch(
+            Map<Long, Long> offsetTracker,
+            List<ConsumerRecord<String, String>> batch
+    ) {
+        if (offsetTracker == null) {
+            // todo: update commit tracker under mutex
+            throw new RuntimeException("Unregistered partition number.");
+        }
+
+        long firstOffset = batch.getFirst().offset();
+        long lastOffset = batch.getLast().offset();
+        offsetTracker.put(firstOffset, lastOffset);
+
+        return firstOffset;
+    }
+
+    private void tryCommitOffsets(Map<TopicPartition, Long> offsets) {
         try {
             mutex.acquire();
             try {
                 Map<TopicPartition, OffsetAndMetadata> toCommitMap = new HashMap<>();
-                initialOffsets.forEach(((topicPartition, initialOffset) -> {
-                    prepareToCommitOffsets(toCommitMap, topicPartition, initialOffset);
+
+                offsets.forEach(((topicPartition, offset) -> {
+                    Optional<OffsetAndMetadata> toCommitOffset = getToCommitOffset(topicPartition, offset);
+                    toCommitOffset.ifPresent(offsetValue -> toCommitMap.put(topicPartition, offsetValue));
                 }));
+
                 if (!toCommitMap.isEmpty()) {
-                    commitQueue.add(toCommitMap);
+                    toCommitQueue.add(toCommitMap);
                 }
             } finally {
                 mutex.release();
@@ -105,34 +119,31 @@ public class OffsetCommitHandler {
         }
     }
 
-    private void prepareToCommitOffsets(
-            Map<TopicPartition, OffsetAndMetadata> commitMap,
-            TopicPartition topicPartition,
-            long offset
-    ) {
+    private Optional<OffsetAndMetadata> getToCommitOffset(TopicPartition topicPartition, long offset) {
+        OffsetAndMetadata offsetAndMetadata = null;
         long toCommitOffset = toCommitOffsets.get(topicPartition);
         if (toCommitOffset == offset) {
-            Map<Long, Long> partitionUncommitedOffsets = uncommitedOffsets.get(topicPartition);
-            long newToCommitOffset = getLastReadyToCommitOffset(partitionUncommitedOffsets, offset);
+            Map<Long, Long> uncommitedOffsetRanges = uncommitedOffsets.get(topicPartition);
+            long greatestOffset = getGreatestReadyToCommitOffset(uncommitedOffsetRanges, offset);
 
-            toCommitOffsets.put(topicPartition, newToCommitOffset);
+            toCommitOffsets.put(topicPartition, greatestOffset);
 
-            OffsetAndMetadata offsetAndMetadata = new OffsetAndMetadata(newToCommitOffset);
-            commitMap.put(topicPartition, offsetAndMetadata);
+            offsetAndMetadata = new OffsetAndMetadata(greatestOffset);
         }
+        return Optional.ofNullable(offsetAndMetadata);
     }
 
-    private long getLastReadyToCommitOffset(Map<Long, Long> partitionOffsetTracker, long firstCommitOffset) {
-        long lastReadyToCommitOffset = firstCommitOffset;
+    private long getGreatestReadyToCommitOffset(Map<Long, Long> partitionOffsetTracker, long firstCommitOffset) {
+        long greatestOffset = firstCommitOffset;
         for (; ; ) {
-            Long nextOffset = partitionOffsetTracker.get(lastReadyToCommitOffset);
+            Long nextOffset = partitionOffsetTracker.get(greatestOffset);
             if (nextOffset == null) {
                 break;
             }
-            partitionOffsetTracker.remove(lastReadyToCommitOffset);
-            lastReadyToCommitOffset = nextOffset + 1;
+            partitionOffsetTracker.remove(greatestOffset);
+            greatestOffset = nextOffset + 1;
         }
-        return lastReadyToCommitOffset;
+        return greatestOffset;
     }
 
 }
