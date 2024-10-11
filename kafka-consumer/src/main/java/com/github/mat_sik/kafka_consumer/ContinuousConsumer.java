@@ -7,7 +7,9 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -18,6 +20,7 @@ import java.util.logging.Logger;
 public class ContinuousConsumer implements Runnable {
 
     private static final Logger LOGGER = Logger.getLogger(ContinuousConsumer.class.getName());
+    private static final int PROCESSOR_AMOUNT = 3;
 
     private static final Duration POLL_DURATION = Duration.ofMillis(100);
 
@@ -26,6 +29,8 @@ public class ContinuousConsumer implements Runnable {
 
     private final BlockingQueue<ConsumerRecords<String, String>> toProcessQueue;
     private final ConcurrentLinkedQueue<Map<TopicPartition, OffsetAndMetadata>> toCommitQueue;
+
+    private final List<Thread> processors;
 
     public ContinuousConsumer(
             Properties kafkaConsumerProperties,
@@ -37,6 +42,7 @@ public class ContinuousConsumer implements Runnable {
         this.topicNames = topicNames;
         this.toProcessQueue = toProcessQueue;
         this.toCommitQueue = toCommitQueue;
+        this.processors = new ArrayList<>();
     }
 
     @Override
@@ -74,7 +80,7 @@ public class ContinuousConsumer implements Runnable {
                 }
             }
         } catch (InterruptedException ex) {
-            LOGGER.severe(ex.getMessage());
+            LOGGER.severe("Got interrupted, exception message: " + ex.getMessage());
             shutdown();
         }
     }
@@ -88,9 +94,13 @@ public class ContinuousConsumer implements Runnable {
 
         var offsetCommiter = new OffsetCommitHandler(commited, toCommitQueue);
 
-        Thread.ofVirtual().name("processor-1").start(new RecordBatchProcessor(toProcessQueue, offsetCommiter));
-        Thread.ofVirtual().name("processor-2").start(new RecordBatchProcessor(toProcessQueue, offsetCommiter));
-        Thread.ofVirtual().name("processor-3").start(new RecordBatchProcessor(toProcessQueue, offsetCommiter));
+        for (int i = 0; i < PROCESSOR_AMOUNT; i++) {
+            String name = String.format("processor-%d", i);
+            Thread thread = Thread.ofVirtual()
+                    .name(name)
+                    .start(new RecordBatchProcessor(toProcessQueue, offsetCommiter));
+            processors.add(thread);
+        }
 
         return true;
     }
@@ -110,6 +120,9 @@ public class ContinuousConsumer implements Runnable {
     }
 
     public void shutdown() {
+        for (Thread processor : processors) {
+            processor.interrupt();
+        }
         consumer.wakeup();
     }
 

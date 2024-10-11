@@ -28,12 +28,16 @@ public class RecordBatchProcessor implements Runnable {
     public void run() {
         try {
             for (; ; ) {
+                if (Thread.interrupted()) {
+                    throw new InterruptedException();
+                }
+
                 ConsumerRecords<String, String> records = toProcessQueue.take();
                 logRecords(records);
                 offsetCommitHandler.registerRecordsAndTryToCommit(records);
             }
         } catch (InterruptedException ex) {
-            LOGGER.info(ex.getMessage());
+            LOGGER.info("Got interrupted, exception message: " + ex.getMessage());
         }
     }
 
