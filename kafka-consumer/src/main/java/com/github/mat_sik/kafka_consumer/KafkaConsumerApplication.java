@@ -4,6 +4,11 @@ import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.CreateTopicsResult;
 import org.apache.kafka.clients.admin.ListTopicsResult;
 import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.common.TopicPartition;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -11,9 +16,13 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.context.annotation.Bean;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.LinkedBlockingQueue;
 
 @SpringBootApplication
 @ConfigurationPropertiesScan
@@ -24,17 +33,16 @@ public class KafkaConsumerApplication {
     }
 
     @Bean
-    public CommandLineRunner commandLineRunner(
-            Admin admin,
-            Properties kafkaConsumerProperties
-    ) {
+    public CommandLineRunner commandLineRunner(Admin admin, Properties kafkaConsumerProperties) {
         return _ -> {
             String topicName = "my-topic";
             ensureTopicExists(admin, topicName);
 
-            var consumer = new ContinuousConsumer(kafkaConsumerProperties, List.of(topicName));
+            BlockingQueue<ConsumerRecords<String, String>> recordBatchQueue = new LinkedBlockingQueue<>();
+            ConcurrentLinkedQueue<Map<TopicPartition, OffsetAndMetadata>> commitQueue = new ConcurrentLinkedQueue<>();
 
-            consumer.run();
+            var continuousConsumer = new ContinuousConsumer(kafkaConsumerProperties, List.of(topicName), recordBatchQueue, commitQueue);
+            continuousConsumer.run();
         };
     }
 
@@ -59,6 +67,5 @@ public class KafkaConsumerApplication {
         Set<String> names = listTopics.names().get();
         return names.contains(name);
     }
-
 
 }
