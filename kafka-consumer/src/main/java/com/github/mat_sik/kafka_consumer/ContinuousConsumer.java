@@ -3,12 +3,14 @@ package com.github.mat_sik.kafka_consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
 
 import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.logging.Logger;
@@ -42,14 +44,36 @@ public class ContinuousConsumer implements Runnable {
     }
 
     private void continuousConsume() {
+        boolean seekPerformed = false;
         for (; ; ) {
             // After wakeup() was called on consumer, poll() will throw WakeupException.
             ConsumerRecords<String, String> records = consumer.poll(POLL_DURATION);
+            if (!seekPerformed) {
+                seekPerformed = performSeek();
+            }
             if (!records.isEmpty()) {
                 logPartitionData(records);
             }
             consumer.commitSync();
         }
+    }
+
+    private boolean performSeek() {
+        Set<TopicPartition> topicPartitions = consumer.assignment();
+        if (topicPartitions.isEmpty()) {
+            return false;
+        }
+        Map<TopicPartition, OffsetAndMetadata> commited = consumer.committed(topicPartitions);
+
+        commited.forEach((topicPartition, offsetAndMetadata) -> {
+            long offset = 0;
+            if (offsetAndMetadata != null) {
+                offset = offsetAndMetadata.offset();
+            }
+            consumer.seek(topicPartition, offset);
+        });
+
+        return true;
     }
 
     private void logPartitionData(ConsumerRecords<String, String> records) {
