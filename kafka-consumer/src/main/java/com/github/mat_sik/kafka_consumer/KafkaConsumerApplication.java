@@ -1,5 +1,6 @@
 package com.github.mat_sik.kafka_consumer;
 
+import com.mongodb.client.MongoCollection;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.CreateTopicsResult;
 import org.apache.kafka.clients.admin.ListTopicsResult;
@@ -7,6 +8,7 @@ import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
+import org.bson.Document;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -33,7 +35,11 @@ public class KafkaConsumerApplication {
     }
 
     @Bean
-    public CommandLineRunner commandLineRunner(Admin admin, Properties kafkaConsumerProperties) {
+    public CommandLineRunner commandLineRunner(
+            Admin admin,
+            Properties kafkaConsumerProperties,
+            MongoCollection<Document> collection
+    ) {
         return _ -> {
             List<String> topicNames = List.of("my-topic");
             ensureTopicsExists(admin, topicNames);
@@ -41,7 +47,7 @@ public class KafkaConsumerApplication {
             BlockingQueue<ConsumerRecords<String, String>> toProcessQueue = new LinkedBlockingQueue<>();
             ConcurrentLinkedQueue<Map<TopicPartition, OffsetAndMetadata>> toCommitQueue = new ConcurrentLinkedQueue<>();
 
-            var continuousConsumer = new ContinuousConsumer(kafkaConsumerProperties, topicNames, toProcessQueue, toCommitQueue);
+            var continuousConsumer = new ContinuousConsumer(kafkaConsumerProperties, topicNames, toProcessQueue, toCommitQueue, collection);
             continuousConsumer.run();
         };
     }

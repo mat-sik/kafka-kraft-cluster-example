@@ -1,10 +1,12 @@
 package com.github.mat_sik.kafka_consumer;
 
+import com.mongodb.client.MongoCollection;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
+import org.bson.Document;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -30,19 +32,23 @@ public class ContinuousConsumer implements Runnable {
     private final BlockingQueue<ConsumerRecords<String, String>> toProcessQueue;
     private final ConcurrentLinkedQueue<Map<TopicPartition, OffsetAndMetadata>> toCommitQueue;
 
+    private final MongoCollection<Document> collection;
+
     private final List<Thread> processors;
 
     public ContinuousConsumer(
             Properties kafkaConsumerProperties,
             Collection<String> topicNames,
             BlockingQueue<ConsumerRecords<String, String>> toProcessQueue,
-            ConcurrentLinkedQueue<Map<TopicPartition, OffsetAndMetadata>> toCommitQueue
+            ConcurrentLinkedQueue<Map<TopicPartition, OffsetAndMetadata>> toCommitQueue,
+            MongoCollection<Document> collection
     ) {
         this.consumer = new KafkaConsumer<>(kafkaConsumerProperties);
         this.topicNames = topicNames;
         this.toProcessQueue = toProcessQueue;
         this.toCommitQueue = toCommitQueue;
         this.processors = new ArrayList<>();
+        this.collection = collection;
     }
 
     @Override
@@ -98,7 +104,7 @@ public class ContinuousConsumer implements Runnable {
             String name = String.format("processor-%d", i);
             Thread thread = Thread.ofVirtual()
                     .name(name)
-                    .start(new RecordBatchProcessor(toProcessQueue, offsetCommiter));
+                    .start(new RecordBatchProcessor(toProcessQueue, offsetCommiter, collection));
             processors.add(thread);
         }
 

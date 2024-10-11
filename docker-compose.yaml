@@ -140,6 +140,34 @@ services:
       - controller-2
       - controller-3
 
+  consumer-mongo:
+    image: mongo:8.0.0
+    container_name: consumer-mongo
+    networks:
+      - net
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=pass
+      - MONGO_INITDB_ROOT_DATABASE=consumer-db
+    volumes:
+      - consumer-mongo-db-data:/data/db
+      - consumer-mongo-db-config:/data/configdb
+  consumer-mongo-express:
+    image: mongo-express
+    container_name: consumer-mongo-express
+    restart: always
+    networks:
+      - net
+    ports:
+      - "8081:8081"
+    environment:
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=admin
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=pass
+      - ME_CONFIG_MONGODB_SERVER=consumer-mongo
+      - ME_CONFIG_MONGODB_PORT=27017
+
 volumes:
   controller-1-data:
   controller-1-secrets:
@@ -164,6 +192,9 @@ volumes:
   broker-3-data:
   broker-3-secrets:
   broker-3-config:
+
+  consumer-mongo-db-data:
+  consumer-mongo-db-config:
 
 networks:
   net:

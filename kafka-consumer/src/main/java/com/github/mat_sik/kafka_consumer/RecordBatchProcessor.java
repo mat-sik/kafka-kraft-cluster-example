@@ -1,9 +1,12 @@
 package com.github.mat_sik.kafka_consumer;
 
+import com.mongodb.client.MongoCollection;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.common.TopicPartition;
+import org.bson.Document;
 
+import javax.print.Doc;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
@@ -16,12 +19,16 @@ public class RecordBatchProcessor implements Runnable {
     private final BlockingQueue<ConsumerRecords<String, String>> toProcessQueue;
     private final OffsetCommitHandler offsetCommitHandler;
 
+    private final MongoCollection<Document> collection;
+
     public RecordBatchProcessor(
             BlockingQueue<ConsumerRecords<String, String>> toProcessQueue,
-            OffsetCommitHandler offsetCommitHandler
+            OffsetCommitHandler offsetCommitHandler,
+            MongoCollection<Document> collection
     ) {
         this.toProcessQueue = toProcessQueue;
         this.offsetCommitHandler = offsetCommitHandler;
+        this.collection = collection;
     }
 
     @Override
@@ -34,11 +41,25 @@ public class RecordBatchProcessor implements Runnable {
 
                 ConsumerRecords<String, String> records = toProcessQueue.take();
                 logRecords(records);
+                saveAll(records);
                 offsetCommitHandler.registerRecordsAndTryToCommit(records);
             }
         } catch (InterruptedException ex) {
             LOGGER.info("Got interrupted, exception message: " + ex.getMessage());
         }
+    }
+
+    private void saveAll(ConsumerRecords<String, String> records) {
+        records.forEach(this::saveRecord);
+    }
+
+    private void saveRecord(ConsumerRecord<String, String> record) {
+        Document doc = new Document()
+                .append("_id", record.key())
+                .append("value", record.value())
+                .append("offset", record.offset());
+
+        collection.insertOne(doc);
     }
 
     private void logRecords(ConsumerRecords<String, String> records) {

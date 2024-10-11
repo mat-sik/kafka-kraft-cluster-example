@@ -2,6 +2,14 @@ spring:
   application:
     name: kafka-consumer
 
+mongo:
+  host: localhost
+  port: 27017
+  username: admin
+  password: pass
+  authDatabase: admin
+  database: consumer-db
+
 kafka:
   clientId: consumer
   hosts: localhost:29092,localhost:39092,localhost:49092
