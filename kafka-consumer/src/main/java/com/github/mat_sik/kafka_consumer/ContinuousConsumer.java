@@ -84,10 +84,6 @@ public class ContinuousConsumer implements Runnable {
             return false;
         }
         Map<TopicPartition, OffsetAndMetadata> commited = consumer.committed(topicPartitions);
-        commited.forEach(((topicPartition, offsetAndMetadata) -> {
-            long offset = offsetAndMetadata == null ? 0 : offsetAndMetadata.offset();
-            consumer.seek(topicPartition, offset);
-        }));
 
         var offsetCommiter = new OffsetCommitHandler(commited, commitQueue);
 
