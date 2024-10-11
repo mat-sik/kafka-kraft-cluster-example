@@ -48,34 +48,11 @@ public class ContinuousConsumer implements Runnable {
         for (; ; ) {
             // After wakeup() was called on consumer, poll() will throw WakeupException.
             ConsumerRecords<String, String> records = consumer.poll(POLL_DURATION);
-            if (!seekPerformed) {
-                seekPerformed = performSeek();
+            if (!records.isEmpty()) {
+                logPartitionData(records);
             }
-            if (seekPerformed) {
-                if (!records.isEmpty()) {
-                    logPartitionData(records);
-                }
-                consumer.commitSync();
-            }
+            consumer.commitSync();
         }
-    }
-
-    private boolean performSeek() {
-        Set<TopicPartition> topicPartitions = consumer.assignment();
-        if (topicPartitions.isEmpty()) {
-            return false;
-        }
-        Map<TopicPartition, OffsetAndMetadata> commited = consumer.committed(topicPartitions);
-
-        commited.forEach((topicPartition, offsetAndMetadata) -> {
-            long offset = 0;
-            if (offsetAndMetadata != null) {
-                offset = offsetAndMetadata.offset();
-            }
-            consumer.seek(topicPartition, offset);
-        });
-
-        return true;
     }
 
     private void logPartitionData(ConsumerRecords<String, String> records) {
