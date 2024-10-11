@@ -53,18 +53,27 @@ public class ContinuousConsumer implements Runnable {
     }
 
     private void logPartitionData(ConsumerRecords<String, String> records) {
-        LOGGER.info("### NEW BATCH ###");
+        StringBuilder builder = new StringBuilder("### NEW BATCH");
 
         Set<TopicPartition> partitions = records.partitions();
-        partitions.forEach(topicPartition -> {
-            int partitionNumber = topicPartition.partition();
-            LOGGER.info("## PARTITION: " + partitionNumber + " ##");
+        for (TopicPartition partition : partitions) {
+            int partitionNumber = partition.partition();
 
-            List<ConsumerRecord<String, String>> partitionRecords = records.records(topicPartition);
-            partitionRecords.forEach(record -> LOGGER.info("# record: " + record + " #"));
-        });
+            List<ConsumerRecord<String, String>> partitionRecords = records.records(partition);
+            long firstOffset = partitionRecords.getFirst().offset();
+            long lastOffset = partitionRecords.getLast().offset();
 
-        LOGGER.info("### END BATCH ###");
+            builder.append(" | PARTITION: ")
+                    .append(partitionNumber)
+                    .append(" FIRST OFFSET: ")
+                    .append(firstOffset)
+                    .append(" LAST OFFSET: ")
+                    .append(lastOffset);
+        }
+
+        builder.append(" | ###");
+
+        LOGGER.info(builder.toString());
     }
 
     public void shutdown() {
