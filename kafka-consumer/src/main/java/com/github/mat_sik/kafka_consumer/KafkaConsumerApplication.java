@@ -4,9 +4,7 @@ import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.CreateTopicsResult;
 import org.apache.kafka.clients.admin.ListTopicsResult;
 import org.apache.kafka.clients.admin.NewTopic;
-import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.springframework.boot.CommandLineRunner;
@@ -24,6 +22,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.stream.Collectors;
 
 @SpringBootApplication
 @ConfigurationPropertiesScan
@@ -37,7 +36,7 @@ public class KafkaConsumerApplication {
     public CommandLineRunner commandLineRunner(Admin admin, Properties kafkaConsumerProperties) {
         return _ -> {
             List<String> topicNames = List.of("my-topic");
-            ensureTopicExists(admin, topicNames);
+            ensureTopicsExists(admin, topicNames);
 
             BlockingQueue<ConsumerRecords<String, String>> toProcessQueue = new LinkedBlockingQueue<>();
             ConcurrentLinkedQueue<Map<TopicPartition, OffsetAndMetadata>> toCommitQueue = new ConcurrentLinkedQueue<>();
@@ -47,13 +46,14 @@ public class KafkaConsumerApplication {
         };
     }
 
-    private void ensureTopicExists(Admin admin, Collection<String> names) throws ExecutionException, InterruptedException {
-        if (!topicExist(admin, names)) {
-            createTopic(admin, names);
+    private void ensureTopicsExists(Admin admin, Collection<String> names) throws ExecutionException, InterruptedException {
+        Set<String> missingNames = getMissingTopicNames(admin, names);
+        if (!missingNames.isEmpty()) {
+            createTopics(admin, names);
         }
     }
 
-    private void createTopic(Admin admin, Collection<String> names) throws ExecutionException, InterruptedException {
+    private void createTopics(Admin admin, Collection<String> names) throws ExecutionException, InterruptedException {
         int partitions = 3;
         short replicationFactor = 3;
 
@@ -66,10 +66,13 @@ public class KafkaConsumerApplication {
         future.all().get();
     }
 
-    private boolean topicExist(Admin admin, Collection<String> names) throws ExecutionException, InterruptedException {
+    private Set<String> getMissingTopicNames(Admin admin, Collection<String> names) throws ExecutionException, InterruptedException {
         ListTopicsResult listTopics = admin.listTopics();
         Set<String> remoteNames = listTopics.names().get();
-        return remoteNames.containsAll(names);
+
+        return names.stream()
+                .filter(name -> !remoteNames.contains(name))
+                .collect(Collectors.toSet());
     }
 
 }
