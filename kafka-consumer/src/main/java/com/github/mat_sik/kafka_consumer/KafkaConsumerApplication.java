@@ -15,6 +15,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.context.annotation.Bean;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -35,37 +36,40 @@ public class KafkaConsumerApplication {
     @Bean
     public CommandLineRunner commandLineRunner(Admin admin, Properties kafkaConsumerProperties) {
         return _ -> {
-            String topicName = "my-topic";
-            ensureTopicExists(admin, topicName);
+            List<String> topicNames = List.of("my-topic");
+            ensureTopicExists(admin, topicNames);
 
             BlockingQueue<ConsumerRecords<String, String>> toProcessQueue = new LinkedBlockingQueue<>();
             ConcurrentLinkedQueue<Map<TopicPartition, OffsetAndMetadata>> toCommitQueue = new ConcurrentLinkedQueue<>();
 
-            var continuousConsumer = new ContinuousConsumer(kafkaConsumerProperties, List.of(topicName), toProcessQueue, toCommitQueue);
+            var continuousConsumer = new ContinuousConsumer(kafkaConsumerProperties, topicNames, toProcessQueue, toCommitQueue);
             continuousConsumer.run();
         };
     }
 
-    private void ensureTopicExists(Admin admin, String name) throws ExecutionException, InterruptedException {
-        if (!topicExist(admin, name)) {
-            createTopic(admin, name);
+    private void ensureTopicExists(Admin admin, Collection<String> names) throws ExecutionException, InterruptedException {
+        if (!topicExist(admin, names)) {
+            createTopic(admin, names);
         }
     }
 
-    private void createTopic(Admin admin, String name) throws ExecutionException, InterruptedException {
+    private void createTopic(Admin admin, Collection<String> names) throws ExecutionException, InterruptedException {
         int partitions = 3;
         short replicationFactor = 3;
-        var topic = new NewTopic(name, partitions, replicationFactor);
 
-        CreateTopicsResult future = admin.createTopics(List.of(topic));
+        List<NewTopic> topics = names.stream()
+                .map(name -> new NewTopic(name, partitions, replicationFactor))
+                .toList();
+
+        CreateTopicsResult future = admin.createTopics(topics);
 
         future.all().get();
     }
 
-    private boolean topicExist(Admin admin, String name) throws ExecutionException, InterruptedException {
+    private boolean topicExist(Admin admin, Collection<String> names) throws ExecutionException, InterruptedException {
         ListTopicsResult listTopics = admin.listTopics();
-        Set<String> names = listTopics.names().get();
-        return names.contains(name);
+        Set<String> remoteNames = listTopics.names().get();
+        return remoteNames.containsAll(names);
     }
 
 }
