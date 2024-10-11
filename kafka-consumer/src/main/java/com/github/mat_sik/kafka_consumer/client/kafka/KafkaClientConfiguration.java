@@ -43,6 +43,8 @@ public class KafkaClientConfiguration {
         // to lose any records.
         consumerProperties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 
+        consumerProperties.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, "5");
+
         return consumerProperties;
     }
 

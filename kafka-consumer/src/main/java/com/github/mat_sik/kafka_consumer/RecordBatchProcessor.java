@@ -1,5 +1,7 @@
 package com.github.mat_sik.kafka_consumer;
 
+import com.mongodb.DuplicateKeyException;
+import com.mongodb.MongoWriteException;
 import com.mongodb.client.MongoCollection;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -59,7 +61,11 @@ public class RecordBatchProcessor implements Runnable {
                 .append("value", record.value())
                 .append("offset", record.offset());
 
-        collection.insertOne(doc);
+        try {
+            collection.insertOne(doc);
+        } catch (MongoWriteException ex) {
+            LOGGER.info(ex.getMessage());
+        }
     }
 
     private void logRecords(ConsumerRecords<String, String> records) {
