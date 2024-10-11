@@ -66,7 +66,7 @@ public class OffsetCommitHandler {
     }
 
     public Map<TopicPartition, Long> registerRecords(ConsumerRecords<String, String> records) {
-        Map<TopicPartition, Long> initialOffsets = new HashMap<>();
+        Map<TopicPartition, Long> firstOffsets = new HashMap<>();
 
         Set<TopicPartition> topicPartitions = records.partitions();
         topicPartitions.forEach(topicPartition -> {
@@ -75,16 +75,13 @@ public class OffsetCommitHandler {
 
             long firstOffset = registerBatch(offsetTracker, batch);
 
-            initialOffsets.put(topicPartition, firstOffset);
+            firstOffsets.put(topicPartition, firstOffset);
         });
 
-        return initialOffsets;
+        return firstOffsets;
     }
 
-    private static long registerBatch(
-            Map<Long, Long> offsetTracker,
-            List<ConsumerRecord<String, String>> batch
-    ) {
+    private static long registerBatch(Map<Long, Long> offsetTracker, List<ConsumerRecord<String, String>> batch) {
         if (offsetTracker == null) {
             // todo: update commit tracker under mutex
             throw new RuntimeException("Unregistered partition number.");
@@ -133,14 +130,14 @@ public class OffsetCommitHandler {
         return Optional.ofNullable(offsetAndMetadata);
     }
 
-    private long getGreatestReadyToCommitOffset(Map<Long, Long> partitionOffsetTracker, long firstCommitOffset) {
+    private long getGreatestReadyToCommitOffset(Map<Long, Long> offsetRanges, long firstCommitOffset) {
         long greatestOffset = firstCommitOffset;
         for (; ; ) {
-            Long nextOffset = partitionOffsetTracker.get(greatestOffset);
+            Long nextOffset = offsetRanges.get(greatestOffset);
             if (nextOffset == null) {
                 break;
             }
-            partitionOffsetTracker.remove(greatestOffset);
+            offsetRanges.remove(greatestOffset);
             greatestOffset = nextOffset + 1;
         }
         return greatestOffset;
