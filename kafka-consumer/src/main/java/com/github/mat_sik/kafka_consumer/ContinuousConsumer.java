@@ -104,7 +104,7 @@ public class ContinuousConsumer implements Runnable {
             String name = String.format("processor-%d", i);
             Thread thread = Thread.ofVirtual()
                     .name(name)
-                    .start(new RecordBatchProcessor(toProcessQueue, offsetCommiter, collection));
+                    .start(new RecordsProcessor(toProcessQueue, offsetCommiter, collection));
             processors.add(thread);
         }
 

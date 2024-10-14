@@ -1,6 +1,5 @@
 package com.github.mat_sik.kafka_consumer;
 
-import com.mongodb.DuplicateKeyException;
 import com.mongodb.MongoWriteException;
 import com.mongodb.client.MongoCollection;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -8,22 +7,21 @@ import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.common.TopicPartition;
 import org.bson.Document;
 
-import javax.print.Doc;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.logging.Logger;
 
-public class RecordBatchProcessor implements Runnable {
+public class RecordsProcessor implements Runnable {
 
-    private static final Logger LOGGER = Logger.getLogger(RecordBatchProcessor.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(RecordsProcessor.class.getName());
 
     private final BlockingQueue<ConsumerRecords<String, String>> toProcessQueue;
     private final OffsetCommitHandler offsetCommitHandler;
 
     private final MongoCollection<Document> collection;
 
-    public RecordBatchProcessor(
+    public RecordsProcessor(
             BlockingQueue<ConsumerRecords<String, String>> toProcessQueue,
             OffsetCommitHandler offsetCommitHandler,
             MongoCollection<Document> collection
