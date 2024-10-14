@@ -1,7 +1,7 @@
 package com.github.mat_sik.kafka_consumer;
 
-import com.mongodb.MongoWriteException;
 import com.mongodb.client.MongoCollection;
+import com.mongodb.client.model.ReplaceOptions;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.common.TopicPartition;
@@ -54,17 +54,15 @@ public class RecordsProcessor implements Runnable {
     }
 
     private void saveRecord(ConsumerRecord<String, String> record) {
+        Integer key = Integer.valueOf(record.key());
+        Document id = new Document("_id", key);
         Document doc = new Document()
-                .append("_id", record.key())
+                .append("_id", key)
                 .append("value", record.value())
-                .append("topic", record.topic())
+                .append("partition", record.partition())
                 .append("offset", record.offset());
 
-        try {
-            collection.insertOne(doc);
-        } catch (MongoWriteException ex) {
-            LOGGER.info(ex.getMessage());
-        }
+        collection.replaceOne(id, doc, new ReplaceOptions().upsert(true));
     }
 
     private void logRecords(ConsumerRecords<String, String> records) {
