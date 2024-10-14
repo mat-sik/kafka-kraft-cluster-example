@@ -59,6 +59,7 @@ public class RecordBatchProcessor implements Runnable {
         Document doc = new Document()
                 .append("_id", record.key())
                 .append("value", record.value())
+                .append("topic", record.topic())
                 .append("offset", record.offset());
 
         try {
