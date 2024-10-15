@@ -30,7 +30,12 @@ public class UncommitedOffsetsHandler {
     }
 
     public Map<Long, Long> getOffsetRanges(TopicPartition topicPartition) {
-        return uncommitedOffsets.get(topicPartition);
+        Map<Long, Long> offsetRanges = uncommitedOffsets.get(topicPartition);
+        if (offsetRanges == null) {
+            // todo: update commit tracker under mutex
+            throw new RuntimeException("Unregistered TopicPartition");
+        }
+        return offsetRanges;
     }
 
     public Map<TopicPartition, Long> registerRecords(ConsumerRecords<String, String> records) {
@@ -38,10 +43,10 @@ public class UncommitedOffsetsHandler {
 
         Set<TopicPartition> topicPartitions = records.partitions();
         topicPartitions.forEach(topicPartition -> {
-            Map<Long, Long> offsetTracker = uncommitedOffsets.get(topicPartition);
+            Map<Long, Long> uncommittedOffsetRanges = getOffsetRanges(topicPartition);
             List<ConsumerRecord<String, String>> batch = records.records(topicPartition);
 
-            long firstOffset = registerBatch(offsetTracker, batch);
+            long firstOffset = registerBatch(uncommittedOffsetRanges, batch);
 
             firstOffsets.put(topicPartition, firstOffset);
         });
@@ -49,15 +54,11 @@ public class UncommitedOffsetsHandler {
         return firstOffsets;
     }
 
-    private static long registerBatch(Map<Long, Long> offsetTracker, List<ConsumerRecord<String, String>> batch) {
-        if (offsetTracker == null) {
-            // todo: update commit tracker under mutex
-            throw new RuntimeException("Unregistered partition number.");
-        }
-
+    private static long registerBatch(Map<Long, Long> offsetRanges, List<ConsumerRecord<String, String>> batch) {
         long firstOffset = batch.getFirst().offset();
         long lastOffset = batch.getLast().offset();
-        offsetTracker.put(firstOffset, lastOffset);
+
+        offsetRanges.put(firstOffset, lastOffset);
 
         return firstOffset;
     }
