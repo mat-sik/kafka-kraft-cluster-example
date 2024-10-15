@@ -45,10 +45,9 @@ public class ToCommitOffsetsHandler {
 
     public void tryCommitOffsets(Map<TopicPartition, Long> offsets) {
         try {
+            Map<TopicPartition, OffsetAndMetadata> toCommitMap = new HashMap<>();
             mutex.acquire();
             try {
-                Map<TopicPartition, OffsetAndMetadata> toCommitMap = new HashMap<>();
-
                 offsets.forEach(((topicPartition, offset) -> {
                     Optional<OffsetAndMetadata> toCommitOffset = getToCommitOffset(topicPartition, offset);
                     toCommitOffset.ifPresent(offsetValue -> toCommitMap.put(topicPartition, offsetValue));
