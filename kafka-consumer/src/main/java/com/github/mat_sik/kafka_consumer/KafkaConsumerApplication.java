@@ -1,5 +1,6 @@
 package com.github.mat_sik.kafka_consumer;
 
+import com.github.mat_sik.kafka_consumer.consumer.ContinuousConsumer;
 import com.mongodb.client.MongoCollection;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.CreateTopicsResult;

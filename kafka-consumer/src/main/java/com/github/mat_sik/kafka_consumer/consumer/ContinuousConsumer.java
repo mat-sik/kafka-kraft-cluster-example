@@ -1,5 +1,7 @@
-package com.github.mat_sik.kafka_consumer;
+package com.github.mat_sik.kafka_consumer.consumer;
 
+import com.github.mat_sik.kafka_consumer.consumer.offset.OffsetHandler;
+import com.github.mat_sik.kafka_consumer.consumer.processor.RecordsProcessor;
 import com.mongodb.client.MongoCollection;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -96,15 +98,15 @@ public class ContinuousConsumer implements Runnable {
         if (topicPartitions.isEmpty()) {
             return false;
         }
-        Map<TopicPartition, OffsetAndMetadata> commited = consumer.committed(topicPartitions);
+        Map<TopicPartition, OffsetAndMetadata> committed = consumer.committed(topicPartitions);
 
-        var offsetCommiter = new OffsetCommitHandler(commited, toCommitQueue);
+        OffsetHandler offsetHandler = OffsetHandler.create(committed, toCommitQueue);
 
         for (int i = 0; i < PROCESSOR_AMOUNT; i++) {
             String name = String.format("processor-%d", i);
             Thread thread = Thread.ofVirtual()
                     .name(name)
-                    .start(new RecordsProcessor(toProcessQueue, offsetCommiter, collection));
+                    .start(new RecordsProcessor(toProcessQueue, offsetHandler, collection));
             processors.add(thread);
         }
 

@@ -1,5 +1,6 @@
-package com.github.mat_sik.kafka_consumer;
+package com.github.mat_sik.kafka_consumer.consumer.processor;
 
+import com.github.mat_sik.kafka_consumer.consumer.offset.OffsetHandler;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.ReplaceOptions;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -17,17 +18,17 @@ public class RecordsProcessor implements Runnable {
     private static final Logger LOGGER = Logger.getLogger(RecordsProcessor.class.getName());
 
     private final BlockingQueue<ConsumerRecords<String, String>> toProcessQueue;
-    private final OffsetCommitHandler offsetCommitHandler;
+    private final OffsetHandler offsetHandler;
 
     private final MongoCollection<Document> collection;
 
     public RecordsProcessor(
             BlockingQueue<ConsumerRecords<String, String>> toProcessQueue,
-            OffsetCommitHandler offsetCommitHandler,
+            OffsetHandler offsetHandler,
             MongoCollection<Document> collection
     ) {
         this.toProcessQueue = toProcessQueue;
-        this.offsetCommitHandler = offsetCommitHandler;
+        this.offsetHandler = offsetHandler;
         this.collection = collection;
     }
 
@@ -42,7 +43,7 @@ public class RecordsProcessor implements Runnable {
                 ConsumerRecords<String, String> records = toProcessQueue.take();
                 logRecords(records);
                 saveAll(records);
-                offsetCommitHandler.registerRecordsAndTryToCommit(records);
+                offsetHandler.registerRecordsAndTryToCommit(records);
             }
         } catch (InterruptedException ex) {
             LOGGER.info("Got interrupted, exception message: " + ex.getMessage());
