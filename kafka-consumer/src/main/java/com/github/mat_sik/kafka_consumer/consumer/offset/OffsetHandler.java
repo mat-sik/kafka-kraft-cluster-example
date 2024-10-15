@@ -1,12 +1,12 @@
 package com.github.mat_sik.kafka_consumer.consumer.offset;
 
+import com.github.mat_sik.kafka_consumer.consumer.ToCommitQueueHandler;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class OffsetHandler {
 
@@ -20,12 +20,12 @@ public class OffsetHandler {
 
     public static OffsetHandler create(
             Map<TopicPartition, OffsetAndMetadata> committed,
-            ConcurrentLinkedQueue<Map<TopicPartition, OffsetAndMetadata>> toCommitQueue
+            ToCommitQueueHandler toCommitQueueHandler
     ) {
         Set<TopicPartition> topicPartitions = committed.keySet();
 
         var uncommitedOffsetsHandler = new UncommitedOffsetsHandler(topicPartitions);
-        var toCommitOffsetsHandler = new ToCommitOffsetsHandler(committed, toCommitQueue, uncommitedOffsetsHandler);
+        var toCommitOffsetsHandler = new ToCommitOffsetsHandler(committed, toCommitQueueHandler, uncommitedOffsetsHandler);
 
         return new OffsetHandler(uncommitedOffsetsHandler, toCommitOffsetsHandler);
     }

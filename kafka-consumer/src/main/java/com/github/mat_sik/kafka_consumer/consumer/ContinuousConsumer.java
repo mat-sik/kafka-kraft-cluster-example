@@ -15,10 +15,12 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Logger;
 
 public class ContinuousConsumer implements Runnable {
@@ -32,7 +34,7 @@ public class ContinuousConsumer implements Runnable {
     private final Collection<String> topicNames;
 
     private final BlockingQueue<ConsumerRecords<String, String>> toProcessQueue;
-    private final ConcurrentLinkedQueue<Map<TopicPartition, OffsetAndMetadata>> toCommitQueue;
+    private final ToCommitQueueHandler toCommitQueueHandler;
 
     private final MongoCollection<Document> collection;
 
@@ -42,13 +44,13 @@ public class ContinuousConsumer implements Runnable {
             Properties kafkaConsumerProperties,
             Collection<String> topicNames,
             BlockingQueue<ConsumerRecords<String, String>> toProcessQueue,
-            ConcurrentLinkedQueue<Map<TopicPartition, OffsetAndMetadata>> toCommitQueue,
+            ToCommitQueueHandler toCommitQueueHandler,
             MongoCollection<Document> collection
     ) {
         this.consumer = new KafkaConsumer<>(kafkaConsumerProperties);
         this.topicNames = topicNames;
         this.toProcessQueue = toProcessQueue;
-        this.toCommitQueue = toCommitQueue;
+        this.toCommitQueueHandler = toCommitQueueHandler;
         this.processors = new ArrayList<>();
         this.collection = collection;
     }
@@ -81,11 +83,11 @@ public class ContinuousConsumer implements Runnable {
                     toProcessQueue.put(records);
                 }
 
-                Map<TopicPartition, OffsetAndMetadata> toCommitMap = toCommitQueue.poll();
-                if (toCommitMap != null) {
-                    logToCommitMap(toCommitMap);
-                    consumer.commitSync(toCommitMap);
-                }
+                Optional<Map<TopicPartition, OffsetAndMetadata>> readyToCommitOffsets = toCommitQueueHandler.poolReadyToCommitOffsets();
+                readyToCommitOffsets.ifPresent(toCommitOffsets -> {
+                    logToCommitMap(toCommitOffsets);
+                    consumer.commitSync(toCommitOffsets);
+                });
             }
         } catch (InterruptedException ex) {
             LOGGER.severe("Got interrupted, exception message: " + ex.getMessage());
@@ -100,13 +102,15 @@ public class ContinuousConsumer implements Runnable {
         }
         Map<TopicPartition, OffsetAndMetadata> committed = consumer.committed(topicPartitions);
 
-        OffsetHandler offsetHandler = OffsetHandler.create(committed, toCommitQueue);
+        OffsetHandler offsetHandler = OffsetHandler.create(committed, toCommitQueueHandler);
+
+        ReadWriteLock readWriteLock = new ReentrantReadWriteLock(true);
 
         for (int i = 0; i < PROCESSOR_AMOUNT; i++) {
             String name = String.format("processor-%d", i);
             Thread thread = Thread.ofVirtual()
                     .name(name)
-                    .start(new RecordsProcessor(toProcessQueue, offsetHandler, collection));
+                    .start(new RecordsProcessor(toProcessQueue, offsetHandler, readWriteLock.readLock(), collection));
             processors.add(thread);
         }
 

@@ -11,6 +11,7 @@ import org.bson.Document;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.locks.Lock;
 import java.util.logging.Logger;
 
 public class RecordsProcessor implements Runnable {
@@ -21,14 +22,17 @@ public class RecordsProcessor implements Runnable {
     private final OffsetHandler offsetHandler;
 
     private final MongoCollection<Document> collection;
+    private final Lock readLock;
 
     public RecordsProcessor(
             BlockingQueue<ConsumerRecords<String, String>> toProcessQueue,
             OffsetHandler offsetHandler,
+            Lock readLock,
             MongoCollection<Document> collection
     ) {
         this.toProcessQueue = toProcessQueue;
         this.offsetHandler = offsetHandler;
+        this.readLock = readLock;
         this.collection = collection;
     }
 
@@ -36,18 +40,23 @@ public class RecordsProcessor implements Runnable {
     public void run() {
         try {
             for (; ; ) {
-                if (Thread.interrupted()) {
-                    throw new InterruptedException();
+                readLock.lockInterruptibly();
+                try {
+                    process();
+                } finally {
+                    readLock.unlock();
                 }
-
-                ConsumerRecords<String, String> records = toProcessQueue.take();
-                logRecords(records);
-                saveAll(records);
-                offsetHandler.registerRecordsAndTryToCommit(records);
             }
         } catch (InterruptedException ex) {
             LOGGER.info("Got interrupted, exception message: " + ex.getMessage());
         }
+    }
+
+    private void process() throws InterruptedException {
+        ConsumerRecords<String, String> records = toProcessQueue.take();
+        saveAll(records);
+        logRecords(records);
+        offsetHandler.registerRecordsAndTryToCommit(records);
     }
 
     private void saveAll(ConsumerRecords<String, String> records) {

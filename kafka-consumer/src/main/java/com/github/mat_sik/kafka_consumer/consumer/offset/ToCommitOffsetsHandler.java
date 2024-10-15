@@ -1,12 +1,12 @@
 package com.github.mat_sik.kafka_consumer.consumer.offset;
 
+import com.github.mat_sik.kafka_consumer.consumer.ToCommitQueueHandler;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Semaphore;
 import java.util.logging.Logger;
 
@@ -15,18 +15,18 @@ public class ToCommitOffsetsHandler {
     private static final Logger LOGGER = Logger.getLogger(ToCommitOffsetsHandler.class.getName());
 
     private final Map<TopicPartition, Long> toCommitOffsets;
-    private final ConcurrentLinkedQueue<Map<TopicPartition, OffsetAndMetadata>> toCommitQueue;
+    private final ToCommitQueueHandler toCommitQueueHandler;
     private final UncommitedOffsetsHandler uncommitedOffsetsHandler;
 
     private final Semaphore mutex;
 
     public ToCommitOffsetsHandler(
             Map<TopicPartition, OffsetAndMetadata> committed,
-            ConcurrentLinkedQueue<Map<TopicPartition, OffsetAndMetadata>> toCommitQueue,
+            ToCommitQueueHandler toCommitQueueHandler,
             UncommitedOffsetsHandler uncommitedOffsetsHandler
     ) {
         this.toCommitOffsets = createToCommitOffsetsTracker(committed);
-        this.toCommitQueue = toCommitQueue;
+        this.toCommitQueueHandler = toCommitQueueHandler;
         this.uncommitedOffsetsHandler = uncommitedOffsetsHandler;
 
         this.mutex = new Semaphore(1);
@@ -54,7 +54,7 @@ public class ToCommitOffsetsHandler {
                 }));
 
                 if (!toCommitMap.isEmpty()) {
-                    toCommitQueue.add(toCommitMap);
+                    toCommitQueueHandler.add(toCommitMap);
                 }
             } finally {
                 mutex.release();

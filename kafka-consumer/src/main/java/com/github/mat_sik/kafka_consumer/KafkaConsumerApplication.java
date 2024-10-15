@@ -1,6 +1,7 @@
 package com.github.mat_sik.kafka_consumer;
 
 import com.github.mat_sik.kafka_consumer.consumer.ContinuousConsumer;
+import com.github.mat_sik.kafka_consumer.consumer.ToCommitQueueHandler;
 import com.mongodb.client.MongoCollection;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.CreateTopicsResult;
@@ -47,8 +48,9 @@ public class KafkaConsumerApplication {
 
             BlockingQueue<ConsumerRecords<String, String>> toProcessQueue = new LinkedBlockingQueue<>();
             ConcurrentLinkedQueue<Map<TopicPartition, OffsetAndMetadata>> toCommitQueue = new ConcurrentLinkedQueue<>();
+            var toCommitQueueHandler = new ToCommitQueueHandler(toCommitQueue);
 
-            var continuousConsumer = new ContinuousConsumer(kafkaConsumerProperties, topicNames, toProcessQueue, toCommitQueue, collection);
+            var continuousConsumer = new ContinuousConsumer(kafkaConsumerProperties, topicNames, toProcessQueue, toCommitQueueHandler, collection);
             continuousConsumer.run();
         };
     }
