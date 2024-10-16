@@ -62,16 +62,16 @@ public class RecordsProcessor implements Runnable {
         Map<TopicPartition, Long> firstOffsets = new HashMap<>();
 
         Set<TopicPartition> topicPartitions = records.partitions();
-        topicPartitions.forEach(topicPartition -> {
+        for (TopicPartition topicPartition : topicPartitions) {
             if (!processingController.shouldProcess() || !offsetHandler.isTopicPartitionRegistered(topicPartition)) {
-                return;
+                break;
             }
             List<ConsumerRecord<String, String>> batch = records.records(topicPartition);
             OffsetRange offsetRange = processBatch(batch);
 
             OptionalLong firstPersistedOffset = offsetHandler.registerBatch(topicPartition, offsetRange);
             firstPersistedOffset.ifPresent(offset -> firstOffsets.put(topicPartition, offset));
-        });
+        }
 
         if (!firstOffsets.isEmpty()) {
             offsetHandler.tryCommitOffsets(firstOffsets);
@@ -115,12 +115,12 @@ public class RecordsProcessor implements Runnable {
         StringBuilder builder = new StringBuilder("### NEW RECORDS");
 
         Set<TopicPartition> topicPartitions = records.partitions();
-        topicPartitions.forEach(topicPartition -> {
+        for (TopicPartition topicPartition : topicPartitions) {
             int partitionNumber = topicPartition.partition();
 
             if (!offsetHandler.isTopicPartitionRegistered(topicPartition)) {
                 builder.append(" | PARTITION: ").append(partitionNumber).append(" SKIPPED");
-                return;
+                break;
             }
 
             List<ConsumerRecord<String, String>> partitionRecords = records.records(topicPartition);
@@ -133,7 +133,7 @@ public class RecordsProcessor implements Runnable {
                     .append(firstOffset)
                     .append(" LAST OFFSET: ")
                     .append(lastOffset);
-        });
+        }
 
         builder.append(" | ###");
 

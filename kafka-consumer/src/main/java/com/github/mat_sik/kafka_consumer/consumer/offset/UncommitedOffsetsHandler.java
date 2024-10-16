@@ -28,10 +28,10 @@ public class UncommitedOffsetsHandler {
             Map<TopicPartition, Map<Long, Long>> uncommitedOffsets,
             Set<TopicPartition> topicPartitions
     ) {
-        topicPartitions.forEach(topicPartition -> {
+        for (TopicPartition topicPartition : topicPartitions) {
             Map<Long, Long> offsetRanges = new ConcurrentHashMap<>();
             uncommitedOffsets.put(topicPartition, offsetRanges);
-        });
+        }
     }
 
     public boolean isTopicPartitionRegistered(TopicPartition topicPartition) {
