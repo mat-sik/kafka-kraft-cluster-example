@@ -48,23 +48,30 @@ public class ToCommitOffsetsHandler {
 
     public void tryCommitOffsets(Map<TopicPartition, Long> offsets) {
         try {
-            Map<TopicPartition, OffsetAndMetadata> toCommitMap = new HashMap<>();
             mutex.acquire();
             try {
-                offsets.forEach(((topicPartition, offset) -> {
-                    Optional<OffsetAndMetadata> toCommitOffset = getToCommitOffset(topicPartition, offset);
-                    toCommitOffset.ifPresent(offsetValue -> toCommitMap.put(topicPartition, offsetValue));
-                }));
-
-                if (!toCommitMap.isEmpty()) {
-                    toCommitQueueHandler.add(toCommitMap);
-                }
+                Optional<Map<TopicPartition, OffsetAndMetadata>> toCommitOffsets = getToCommitOffsets(offsets);
+                toCommitOffsets.ifPresent(toCommitQueueHandler::add);
             } finally {
                 mutex.release();
             }
         } catch (InterruptedException ex) {
             LOGGER.severe(ex.getMessage());
         }
+    }
+
+    private Optional<Map<TopicPartition, OffsetAndMetadata>> getToCommitOffsets(Map<TopicPartition, Long> offsets) {
+        Map<TopicPartition, OffsetAndMetadata> toCommitOffsets = new HashMap<>();
+
+        offsets.forEach(((topicPartition, offset) -> {
+            Optional<OffsetAndMetadata> toCommitOffset = getToCommitOffset(topicPartition, offset);
+            toCommitOffset.ifPresent(offsetValue -> toCommitOffsets.put(topicPartition, offsetValue));
+        }));
+
+        if (toCommitOffsets.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(toCommitOffsets);
     }
 
     private Optional<OffsetAndMetadata> getToCommitOffset(TopicPartition topicPartition, long offset) {
