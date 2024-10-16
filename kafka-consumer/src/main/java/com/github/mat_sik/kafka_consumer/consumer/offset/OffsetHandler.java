@@ -1,9 +1,9 @@
 package com.github.mat_sik.kafka_consumer.consumer.offset;
 
-import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.common.TopicPartition;
 
 import java.util.Map;
+import java.util.OptionalLong;
 
 public class OffsetHandler {
 
@@ -15,9 +15,12 @@ public class OffsetHandler {
         this.uncommitedOffsetsHandler = uncommitedOffsetsHandler;
     }
 
-    public void registerRecordsAndTryToCommit(ConsumerRecords<String, String> records) {
-        Map<TopicPartition, Long> offsets = uncommitedOffsetsHandler.registerRecords(records);
-        toCommitOffsetsHandler.tryCommitOffsets(offsets);
+    public OptionalLong registerBatch(TopicPartition topicPartition, OffsetRange offsetRange) {
+        return uncommitedOffsetsHandler.registerBatch(topicPartition, offsetRange);
+    }
+
+    public void tryCommitOffsets(Map<TopicPartition, Long> toCommitOffsets) {
+        toCommitOffsetsHandler.tryCommitOffsets(toCommitOffsets);
     }
 
     public boolean isTopicPartitionRegistered(TopicPartition topicPartition) {

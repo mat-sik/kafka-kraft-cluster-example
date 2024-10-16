@@ -1,13 +1,10 @@
 package com.github.mat_sik.kafka_consumer.consumer.offset;
 
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.common.TopicPartition;
 
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
@@ -41,22 +38,16 @@ public class UncommitedOffsetsHandler {
         return uncommittedOffsets.containsKey(topicPartition);
     }
 
-    public Map<TopicPartition, Long> registerRecords(ConsumerRecords<String, String> records) {
-        Map<TopicPartition, Long> firstOffsets = new HashMap<>();
+    public OptionalLong registerBatch(TopicPartition topicPartition, OffsetRange offsetRange) {
+        Optional<Map<Long, Long>> uncommittedOffsetRanges = getOffsetRanges(topicPartition);
+        if (uncommittedOffsetRanges.isEmpty()) {
+            return OptionalLong.empty();
+        }
+        Map<Long, Long> offsetRanges = uncommittedOffsetRanges.get();
 
-        Set<TopicPartition> topicPartitions = records.partitions();
-        topicPartitions.forEach(topicPartition -> {
-            Optional<Map<Long, Long>> uncommittedOffsetRanges = getOffsetRanges(topicPartition);
-            uncommittedOffsetRanges.ifPresent(offsetRanges -> {
-                List<ConsumerRecord<String, String>> batch = records.records(topicPartition);
+        offsetRanges.put(offsetRange.first(), offsetRange.last());
 
-                long firstOffset = registerBatch(offsetRanges, batch);
-
-                firstOffsets.put(topicPartition, firstOffset);
-            });
-        });
-
-        return firstOffsets;
+        return OptionalLong.of(offsetRange.first());
     }
 
     public Optional<Map<Long, Long>> getOffsetRanges(TopicPartition topicPartition) {
@@ -65,14 +56,5 @@ public class UncommitedOffsetsHandler {
             LOGGER.severe("Unregistered TopicPartition");
         }
         return Optional.ofNullable(offsetRanges);
-    }
-
-    private static long registerBatch(Map<Long, Long> offsetRanges, List<ConsumerRecord<String, String>> batch) {
-        long firstOffset = batch.getFirst().offset();
-        long lastOffset = batch.getLast().offset();
-
-        offsetRanges.put(firstOffset, lastOffset);
-
-        return firstOffset;
     }
 }

@@ -2,6 +2,7 @@ package com.github.mat_sik.kafka_consumer.consumer.processor;
 
 import com.github.mat_sik.kafka_consumer.consumer.controller.ProcessorsProcessingController;
 import com.github.mat_sik.kafka_consumer.consumer.offset.OffsetHandler;
+import com.github.mat_sik.kafka_consumer.consumer.offset.OffsetRange;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.ReplaceOptions;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -9,7 +10,10 @@ import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.common.TopicPartition;
 import org.bson.Document;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.logging.Logger;
@@ -41,11 +45,10 @@ public class RecordsProcessor implements Runnable {
         try {
             for (; ; ) {
                 ConsumerRecords<String, String> records = toProcessQueue.take();
-                saveAll(records);
-                logRecords(records);
                 processingController.lock();
                 try {
-                    offsetHandler.registerRecordsAndTryToCommit(records);
+                    processRecords(records);
+                    logRecords(records);
                 } finally {
                     processingController.unlock();
                 }
@@ -55,16 +58,45 @@ public class RecordsProcessor implements Runnable {
         }
     }
 
-    private void saveAll(ConsumerRecords<String, String> records) {
+    private void processRecords(ConsumerRecords<String, String> records) {
+        Map<TopicPartition, Long> firstOffsets = new HashMap<>();
+
         Set<TopicPartition> topicPartitions = records.partitions();
         topicPartitions.forEach(topicPartition -> {
-            if (!processingController.shouldProcess()) {
+            if (!processingController.shouldProcess() || !offsetHandler.isTopicPartitionRegistered(topicPartition)) {
                 return;
             }
-            if (offsetHandler.isTopicPartitionRegistered(topicPartition)) {
-                records.records(topicPartition).forEach(this::saveRecord);
-            }
+            List<ConsumerRecord<String, String>> batch = records.records(topicPartition);
+            OffsetRange offsetRange = processBatch(batch);
+
+            OptionalLong firstPersistedOffset = offsetHandler.registerBatch(topicPartition, offsetRange);
+            firstPersistedOffset.ifPresent(offset -> firstOffsets.put(topicPartition, offset));
         });
+
+        if (!firstOffsets.isEmpty()) {
+            offsetHandler.tryCommitOffsets(firstOffsets);
+        }
+    }
+
+    private OffsetRange processBatch(List<ConsumerRecord<String, String>> batch) {
+        long firstOffset = -1;
+        long lastOffset = -1;
+
+        for (ConsumerRecord<String, String> record : batch) {
+            if (!processingController.shouldProcess()) {
+                break;
+            }
+
+            saveRecord(record);
+
+            long offset = record.offset();
+            if (firstOffset == -1) {
+                firstOffset = offset;
+            }
+            lastOffset = offset;
+        }
+
+        return new OffsetRange(firstOffset, lastOffset);
     }
 
     private void saveRecord(ConsumerRecord<String, String> record) {
@@ -83,8 +115,13 @@ public class RecordsProcessor implements Runnable {
         StringBuilder builder = new StringBuilder("### NEW RECORDS");
 
         Set<TopicPartition> topicPartitions = records.partitions();
-        for (TopicPartition topicPartition : topicPartitions) {
+        topicPartitions.forEach(topicPartition -> {
             int partitionNumber = topicPartition.partition();
+
+            if (!offsetHandler.isTopicPartitionRegistered(topicPartition)) {
+                builder.append(" | PARTITION: ").append(partitionNumber).append(" SKIPPED");
+                return;
+            }
 
             List<ConsumerRecord<String, String>> partitionRecords = records.records(topicPartition);
             long firstOffset = partitionRecords.getFirst().offset();
@@ -96,7 +133,7 @@ public class RecordsProcessor implements Runnable {
                     .append(firstOffset)
                     .append(" LAST OFFSET: ")
                     .append(lastOffset);
-        }
+        });
 
         builder.append(" | ###");
 
