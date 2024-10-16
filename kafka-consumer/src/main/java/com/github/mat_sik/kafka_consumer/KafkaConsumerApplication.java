@@ -54,6 +54,8 @@ public class KafkaConsumerApplication {
             MongoCollection<Document> collection
     ) {
         return _ -> {
+            Consumer<String, String> consumer = new KafkaConsumer<>(kafkaConsumerProperties);
+
             List<String> topicNames = List.of("my-topic");
             ensureTopicsExists(admin, topicNames);
 
@@ -61,15 +63,12 @@ public class KafkaConsumerApplication {
             ConcurrentLinkedQueue<Map<TopicPartition, OffsetAndMetadata>> toCommitQueue = new ConcurrentLinkedQueue<>();
             var toCommitQueueHandler = new ToCommitQueueHandler(toCommitQueue);
 
-            ReadWriteLock readWriteLock = new ReentrantReadWriteLock(true);
-
-            Consumer<String, String> consumer = new KafkaConsumer<String, String>(kafkaConsumerProperties);
-
             var uncommitedOffsetsHandler = new UncommitedOffsetsHandler();
             var toCommitOffsetsHandler = new ToCommitOffsetsHandler(toCommitQueueHandler, uncommitedOffsetsHandler);
 
             var offsetHandler = new OffsetHandler(uncommitedOffsetsHandler, toCommitOffsetsHandler);
 
+            ReadWriteLock readWriteLock = new ReentrantReadWriteLock(true);
             var atomicBoolean = new AtomicBoolean(true);
 
             var processorsProcessingController = new ProcessorsProcessingController(readWriteLock.readLock(), atomicBoolean);
