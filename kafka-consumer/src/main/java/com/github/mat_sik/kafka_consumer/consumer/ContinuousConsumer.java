@@ -3,8 +3,8 @@ package com.github.mat_sik.kafka_consumer.consumer;
 import com.github.mat_sik.kafka_consumer.consumer.offset.OffsetHandler;
 import com.github.mat_sik.kafka_consumer.consumer.processor.RecordsProcessor;
 import com.mongodb.client.MongoCollection;
+import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
@@ -16,11 +16,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Properties;
-import java.util.Set;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.locks.Lock;
 import java.util.logging.Logger;
 
 public class ContinuousConsumer implements Runnable {
@@ -30,35 +27,45 @@ public class ContinuousConsumer implements Runnable {
 
     private static final Duration POLL_DURATION = Duration.ofMillis(100);
 
-    private final KafkaConsumer<String, String> consumer;
+    private final Consumer<String, String> consumer;
     private final Collection<String> topicNames;
 
     private final BlockingQueue<ConsumerRecords<String, String>> toProcessQueue;
     private final ToCommitQueueHandler toCommitQueueHandler;
+    private final OffsetHandler offsetHandler;
+    private final ContinuousConsumerRebalanceListener continuousConsumerRebalanceListener;
+    private final Lock readLock;
 
     private final MongoCollection<Document> collection;
+
 
     private final List<Thread> processors;
 
     public ContinuousConsumer(
-            Properties kafkaConsumerProperties,
+            Consumer<String, String> consumer,
             Collection<String> topicNames,
             BlockingQueue<ConsumerRecords<String, String>> toProcessQueue,
             ToCommitQueueHandler toCommitQueueHandler,
+            OffsetHandler offsetHandler,
+            ContinuousConsumerRebalanceListener continuousConsumerRebalanceListener,
+            Lock readLock,
             MongoCollection<Document> collection
     ) {
-        this.consumer = new KafkaConsumer<>(kafkaConsumerProperties);
+        this.consumer = consumer;
         this.topicNames = topicNames;
         this.toProcessQueue = toProcessQueue;
         this.toCommitQueueHandler = toCommitQueueHandler;
-        this.processors = new ArrayList<>();
+        this.offsetHandler = offsetHandler;
+        this.continuousConsumerRebalanceListener = continuousConsumerRebalanceListener;
+        this.readLock = readLock;
         this.collection = collection;
+        this.processors = new ArrayList<>();
     }
 
     @Override
     public void run() {
         try {
-            consumer.subscribe(topicNames);
+            consumer.subscribe(topicNames, continuousConsumerRebalanceListener);
             continuousConsume();
         } catch (WakeupException ex) {
             LOGGER.info(ex.getMessage());
@@ -71,13 +78,10 @@ public class ContinuousConsumer implements Runnable {
 
     private void continuousConsume() {
         try {
-            boolean processorsRunning = false;
+            setUpProcessors();
             for (; ; ) {
                 // After wakeup() was called on consumer, poll() will throw WakeupException.
                 ConsumerRecords<String, String> records = consumer.poll(POLL_DURATION);
-                if (!processorsRunning) {
-                    processorsRunning = setUpProcessors();
-                }
 
                 if (!records.isEmpty()) {
                     toProcessQueue.put(records);
@@ -95,26 +99,14 @@ public class ContinuousConsumer implements Runnable {
         }
     }
 
-    private boolean setUpProcessors() {
-        Set<TopicPartition> topicPartitions = consumer.assignment();
-        if (topicPartitions.isEmpty()) {
-            return false;
-        }
-        Map<TopicPartition, OffsetAndMetadata> committed = consumer.committed(topicPartitions);
-
-        OffsetHandler offsetHandler = OffsetHandler.create(committed, toCommitQueueHandler);
-
-        ReadWriteLock readWriteLock = new ReentrantReadWriteLock(true);
-
+    private void setUpProcessors() {
         for (int i = 0; i < PROCESSOR_AMOUNT; i++) {
             String name = String.format("processor-%d", i);
             Thread thread = Thread.ofVirtual()
                     .name(name)
-                    .start(new RecordsProcessor(toProcessQueue, offsetHandler, readWriteLock.readLock(), collection));
+                    .start(new RecordsProcessor(toProcessQueue, offsetHandler, readLock, collection));
             processors.add(thread);
         }
-
-        return true;
     }
 
     private void logToCommitMap(Map<TopicPartition, OffsetAndMetadata> toCommitMap) {

@@ -40,9 +40,12 @@ public class RecordsProcessor implements Runnable {
     public void run() {
         try {
             for (; ; ) {
+                ConsumerRecords<String, String> records = toProcessQueue.take();
+                saveAll(records);
+                logRecords(records);
                 readLock.lockInterruptibly();
                 try {
-                    process();
+                    offsetHandler.registerRecordsAndTryToCommit(records);
                 } finally {
                     readLock.unlock();
                 }
@@ -50,13 +53,6 @@ public class RecordsProcessor implements Runnable {
         } catch (InterruptedException ex) {
             LOGGER.info("Got interrupted, exception message: " + ex.getMessage());
         }
-    }
-
-    private void process() throws InterruptedException {
-        ConsumerRecords<String, String> records = toProcessQueue.take();
-        saveAll(records);
-        logRecords(records);
-        offsetHandler.registerRecordsAndTryToCommit(records);
     }
 
     private void saveAll(ConsumerRecords<String, String> records) {

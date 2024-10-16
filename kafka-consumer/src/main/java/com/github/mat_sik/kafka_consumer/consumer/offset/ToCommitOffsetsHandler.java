@@ -21,26 +21,29 @@ public class ToCommitOffsetsHandler {
     private final Semaphore mutex;
 
     public ToCommitOffsetsHandler(
-            Map<TopicPartition, OffsetAndMetadata> committed,
             ToCommitQueueHandler toCommitQueueHandler,
             UncommitedOffsetsHandler uncommitedOffsetsHandler
     ) {
-        this.toCommitOffsets = createToCommitOffsetsTracker(committed);
+        this.toCommitOffsets = new HashMap<>();
         this.toCommitQueueHandler = toCommitQueueHandler;
         this.uncommitedOffsetsHandler = uncommitedOffsetsHandler;
 
         this.mutex = new Semaphore(1);
     }
 
-    private static Map<TopicPartition, Long> createToCommitOffsetsTracker(Map<TopicPartition, OffsetAndMetadata> committed) {
-        Map<TopicPartition, Long> toCommitOffsets = new HashMap<>();
+    public void updateCommittedOffsets(Map<TopicPartition, OffsetAndMetadata> committed) {
+        toCommitOffsets.clear();
+        populateToCommitOffsets(toCommitOffsets, committed);
+    }
 
+    private static void populateToCommitOffsets(
+            Map<TopicPartition, Long> toCommitOffsets,
+            Map<TopicPartition, OffsetAndMetadata> committed
+    ) {
         committed.forEach((topicPartition, offsetAndMetadata) -> {
             long offset = offsetAndMetadata == null ? 0 : offsetAndMetadata.offset();
             toCommitOffsets.put(topicPartition, offset);
         });
-
-        return toCommitOffsets;
     }
 
     public void tryCommitOffsets(Map<TopicPartition, Long> offsets) {
@@ -65,17 +68,27 @@ public class ToCommitOffsetsHandler {
     }
 
     private Optional<OffsetAndMetadata> getToCommitOffset(TopicPartition topicPartition, long offset) {
-        OffsetAndMetadata offsetAndMetadata = null;
-        long toCommitOffset = toCommitOffsets.get(topicPartition);
-        if (toCommitOffset == offset) {
-            Map<Long, Long> uncommitedOffsetRanges = uncommitedOffsetsHandler.getOffsetRanges(topicPartition);
-            long greatestOffset = getGreatestReadyToCommitOffset(uncommitedOffsetRanges, offset);
-
-            toCommitOffsets.put(topicPartition, greatestOffset);
-
-            offsetAndMetadata = new OffsetAndMetadata(greatestOffset);
+        Long toCommitOffset = toCommitOffsets.get(topicPartition);
+        if (toCommitOffset == null) {
+            LOGGER.severe("Unregistered TopicPartition");
+            return Optional.empty();
         }
-        return Optional.ofNullable(offsetAndMetadata);
+
+        if (toCommitOffset != offset) {
+            return Optional.empty();
+        }
+
+        Optional<Map<Long, Long>> uncommitedOffsetRanges = uncommitedOffsetsHandler.getOffsetRanges(topicPartition);
+        if (uncommitedOffsetRanges.isEmpty()) {
+            return Optional.empty();
+        }
+        Map<Long, Long> offsetRanges = uncommitedOffsetRanges.get();
+
+        long greatestOffset = getGreatestReadyToCommitOffset(offsetRanges, offset);
+
+        toCommitOffsets.put(topicPartition, greatestOffset);
+
+        return Optional.of(new OffsetAndMetadata(greatestOffset));
     }
 
     private long getGreatestReadyToCommitOffset(Map<Long, Long> offsetRanges, long firstCommitOffset) {

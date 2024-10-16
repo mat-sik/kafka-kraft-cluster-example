@@ -1,13 +1,19 @@
 package com.github.mat_sik.kafka_consumer;
 
 import com.github.mat_sik.kafka_consumer.consumer.ContinuousConsumer;
+import com.github.mat_sik.kafka_consumer.consumer.ContinuousConsumerRebalanceListener;
 import com.github.mat_sik.kafka_consumer.consumer.ToCommitQueueHandler;
+import com.github.mat_sik.kafka_consumer.consumer.offset.OffsetHandler;
+import com.github.mat_sik.kafka_consumer.consumer.offset.ToCommitOffsetsHandler;
+import com.github.mat_sik.kafka_consumer.consumer.offset.UncommitedOffsetsHandler;
 import com.mongodb.client.MongoCollection;
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.CreateTopicsResult;
 import org.apache.kafka.clients.admin.ListTopicsResult;
 import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.bson.Document;
@@ -26,6 +32,8 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 @SpringBootApplication
@@ -50,7 +58,34 @@ public class KafkaConsumerApplication {
             ConcurrentLinkedQueue<Map<TopicPartition, OffsetAndMetadata>> toCommitQueue = new ConcurrentLinkedQueue<>();
             var toCommitQueueHandler = new ToCommitQueueHandler(toCommitQueue);
 
-            var continuousConsumer = new ContinuousConsumer(kafkaConsumerProperties, topicNames, toProcessQueue, toCommitQueueHandler, collection);
+            ReadWriteLock readWriteLock = new ReentrantReadWriteLock(true);
+
+            Consumer<String, String> consumer = new KafkaConsumer<String, String>(kafkaConsumerProperties);
+
+            var uncommitedOffsetsHandler = new UncommitedOffsetsHandler();
+            var toCommitOffsetsHandler = new ToCommitOffsetsHandler(toCommitQueueHandler, uncommitedOffsetsHandler);
+
+            var offsetHandler = new OffsetHandler(uncommitedOffsetsHandler, toCommitOffsetsHandler);
+
+            ContinuousConsumerRebalanceListener continuousConsumerRebalanceListener = new ContinuousConsumerRebalanceListener(
+                    consumer,
+                    readWriteLock.writeLock(),
+                    toCommitQueueHandler,
+                    toCommitOffsetsHandler,
+                    uncommitedOffsetsHandler
+            );
+
+            var continuousConsumer = new ContinuousConsumer(
+                    consumer,
+                    topicNames,
+                    toProcessQueue,
+                    toCommitQueueHandler,
+                    offsetHandler,
+                    continuousConsumerRebalanceListener,
+                    readWriteLock.readLock(),
+                    collection
+            );
+
             continuousConsumer.run();
         };
     }
