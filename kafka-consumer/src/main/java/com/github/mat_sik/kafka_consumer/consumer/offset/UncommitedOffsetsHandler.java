@@ -37,6 +37,10 @@ public class UncommitedOffsetsHandler {
         });
     }
 
+    public boolean isTopicPartitionRegistered(TopicPartition topicPartition) {
+        return uncommittedOffsets.containsKey(topicPartition);
+    }
+
     public Map<TopicPartition, Long> registerRecords(ConsumerRecords<String, String> records) {
         Map<TopicPartition, Long> firstOffsets = new HashMap<>();
 

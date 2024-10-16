@@ -41,10 +41,8 @@ public class RecordsProcessor implements Runnable {
         try {
             for (; ; ) {
                 ConsumerRecords<String, String> records = toProcessQueue.take();
-                if (processingController.shouldProcess()) {
-                    saveAll(records);
-                    logRecords(records);
-                }
+                saveAll(records);
+                logRecords(records);
                 processingController.lock();
                 try {
                     offsetHandler.registerRecordsAndTryToCommit(records);
@@ -58,7 +56,15 @@ public class RecordsProcessor implements Runnable {
     }
 
     private void saveAll(ConsumerRecords<String, String> records) {
-        records.forEach(this::saveRecord);
+        Set<TopicPartition> topicPartitions = records.partitions();
+        topicPartitions.forEach(topicPartition -> {
+            if (!processingController.shouldProcess()) {
+                return;
+            }
+            if (offsetHandler.isTopicPartitionRegistered(topicPartition)) {
+                records.records(topicPartition).forEach(this::saveRecord);
+            }
+        });
     }
 
     private void saveRecord(ConsumerRecord<String, String> record) {

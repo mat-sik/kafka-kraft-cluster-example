@@ -20,4 +20,8 @@ public class OffsetHandler {
         toCommitOffsetsHandler.tryCommitOffsets(offsets);
     }
 
+    public boolean isTopicPartitionRegistered(TopicPartition topicPartition) {
+        return uncommitedOffsetsHandler.isTopicPartitionRegistered(topicPartition);
+    }
+
 }
