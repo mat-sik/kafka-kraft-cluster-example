@@ -43,7 +43,8 @@ public class ContinuousConsumer implements Runnable {
     public ContinuousConsumer(
             Consumer<String, String> consumer,
             Collection<String> topicNames,
-            ContinuousConsumerRebalanceListener continuousConsumerRebalanceListener, BlockingQueue<ConsumerRecords<String, String>> toProcessQueue,
+            ContinuousConsumerRebalanceListener continuousConsumerRebalanceListener,
+            BlockingQueue<ConsumerRecords<String, String>> toProcessQueue,
             ToCommitQueueHandler toCommitQueueHandler,
             OffsetHandler offsetHandler,
             ProcessorsProcessingController processingController,

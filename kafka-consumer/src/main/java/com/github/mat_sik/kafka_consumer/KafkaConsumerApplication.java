@@ -86,7 +86,8 @@ public class KafkaConsumerApplication {
             var continuousConsumer = new ContinuousConsumer(
                     consumer,
                     topicNames,
-                    continuousConsumerRebalanceListener, toProcessQueue,
+                    continuousConsumerRebalanceListener,
+                    toProcessQueue,
                     toCommitQueueHandler,
                     offsetHandler,
                     processorsProcessingController,
