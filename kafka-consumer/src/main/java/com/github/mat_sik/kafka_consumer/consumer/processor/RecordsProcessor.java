@@ -1,5 +1,6 @@
 package com.github.mat_sik.kafka_consumer.consumer.processor;
 
+import com.github.mat_sik.kafka_consumer.consumer.controller.ProcessorsProcessingController;
 import com.github.mat_sik.kafka_consumer.consumer.offset.OffsetHandler;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.ReplaceOptions;
@@ -11,7 +12,6 @@ import org.bson.Document;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.locks.Lock;
 import java.util.logging.Logger;
 
 public class RecordsProcessor implements Runnable {
@@ -22,17 +22,17 @@ public class RecordsProcessor implements Runnable {
     private final OffsetHandler offsetHandler;
 
     private final MongoCollection<Document> collection;
-    private final Lock readLock;
+    private final ProcessorsProcessingController processingController;
 
     public RecordsProcessor(
             BlockingQueue<ConsumerRecords<String, String>> toProcessQueue,
             OffsetHandler offsetHandler,
-            Lock readLock,
+            ProcessorsProcessingController processingController,
             MongoCollection<Document> collection
     ) {
         this.toProcessQueue = toProcessQueue;
         this.offsetHandler = offsetHandler;
-        this.readLock = readLock;
+        this.processingController = processingController;
         this.collection = collection;
     }
 
@@ -41,13 +41,15 @@ public class RecordsProcessor implements Runnable {
         try {
             for (; ; ) {
                 ConsumerRecords<String, String> records = toProcessQueue.take();
-                saveAll(records);
-                logRecords(records);
-                readLock.lockInterruptibly();
+                if (processingController.shouldProcess()) {
+                    saveAll(records);
+                    logRecords(records);
+                }
+                processingController.lock();
                 try {
                     offsetHandler.registerRecordsAndTryToCommit(records);
                 } finally {
-                    readLock.unlock();
+                    processingController.unlock();
                 }
             }
         } catch (InterruptedException ex) {

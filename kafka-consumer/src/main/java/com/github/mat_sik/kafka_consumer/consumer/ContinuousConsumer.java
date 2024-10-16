@@ -1,5 +1,6 @@
 package com.github.mat_sik.kafka_consumer.consumer;
 
+import com.github.mat_sik.kafka_consumer.consumer.controller.ProcessorsProcessingController;
 import com.github.mat_sik.kafka_consumer.consumer.offset.OffsetHandler;
 import com.github.mat_sik.kafka_consumer.consumer.processor.RecordsProcessor;
 import com.mongodb.client.MongoCollection;
@@ -17,7 +18,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.locks.Lock;
 import java.util.logging.Logger;
 
 public class ContinuousConsumer implements Runnable {
@@ -34,21 +34,19 @@ public class ContinuousConsumer implements Runnable {
     private final ToCommitQueueHandler toCommitQueueHandler;
     private final OffsetHandler offsetHandler;
     private final ContinuousConsumerRebalanceListener continuousConsumerRebalanceListener;
-    private final Lock readLock;
+    private final ProcessorsProcessingController processingController;
 
     private final MongoCollection<Document> collection;
-
 
     private final List<Thread> processors;
 
     public ContinuousConsumer(
             Consumer<String, String> consumer,
             Collection<String> topicNames,
-            BlockingQueue<ConsumerRecords<String, String>> toProcessQueue,
+            ContinuousConsumerRebalanceListener continuousConsumerRebalanceListener, BlockingQueue<ConsumerRecords<String, String>> toProcessQueue,
             ToCommitQueueHandler toCommitQueueHandler,
             OffsetHandler offsetHandler,
-            ContinuousConsumerRebalanceListener continuousConsumerRebalanceListener,
-            Lock readLock,
+            ProcessorsProcessingController processingController,
             MongoCollection<Document> collection
     ) {
         this.consumer = consumer;
@@ -57,7 +55,7 @@ public class ContinuousConsumer implements Runnable {
         this.toCommitQueueHandler = toCommitQueueHandler;
         this.offsetHandler = offsetHandler;
         this.continuousConsumerRebalanceListener = continuousConsumerRebalanceListener;
-        this.readLock = readLock;
+        this.processingController = processingController;
         this.collection = collection;
         this.processors = new ArrayList<>();
     }
@@ -104,7 +102,7 @@ public class ContinuousConsumer implements Runnable {
             String name = String.format("processor-%d", i);
             Thread thread = Thread.ofVirtual()
                     .name(name)
-                    .start(new RecordsProcessor(toProcessQueue, offsetHandler, readLock, collection));
+                    .start(new RecordsProcessor(toProcessQueue, offsetHandler, processingController, collection));
             processors.add(thread);
         }
     }

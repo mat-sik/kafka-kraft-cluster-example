@@ -3,6 +3,8 @@ package com.github.mat_sik.kafka_consumer;
 import com.github.mat_sik.kafka_consumer.consumer.ContinuousConsumer;
 import com.github.mat_sik.kafka_consumer.consumer.ContinuousConsumerRebalanceListener;
 import com.github.mat_sik.kafka_consumer.consumer.ToCommitQueueHandler;
+import com.github.mat_sik.kafka_consumer.consumer.controller.ListenerProcessingController;
+import com.github.mat_sik.kafka_consumer.consumer.controller.ProcessorsProcessingController;
 import com.github.mat_sik.kafka_consumer.consumer.offset.OffsetHandler;
 import com.github.mat_sik.kafka_consumer.consumer.offset.ToCommitOffsetsHandler;
 import com.github.mat_sik.kafka_consumer.consumer.offset.UncommitedOffsetsHandler;
@@ -32,6 +34,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
@@ -67,9 +70,14 @@ public class KafkaConsumerApplication {
 
             var offsetHandler = new OffsetHandler(uncommitedOffsetsHandler, toCommitOffsetsHandler);
 
+            var atomicBoolean = new AtomicBoolean(true);
+
+            var processorsProcessingController = new ProcessorsProcessingController(readWriteLock.readLock(), atomicBoolean);
+            var listenerProcessingController = new ListenerProcessingController(readWriteLock.writeLock(), atomicBoolean);
+
             ContinuousConsumerRebalanceListener continuousConsumerRebalanceListener = new ContinuousConsumerRebalanceListener(
                     consumer,
-                    readWriteLock.writeLock(),
+                    listenerProcessingController,
                     toCommitQueueHandler,
                     toCommitOffsetsHandler,
                     uncommitedOffsetsHandler
@@ -78,11 +86,10 @@ public class KafkaConsumerApplication {
             var continuousConsumer = new ContinuousConsumer(
                     consumer,
                     topicNames,
-                    toProcessQueue,
+                    continuousConsumerRebalanceListener, toProcessQueue,
                     toCommitQueueHandler,
                     offsetHandler,
-                    continuousConsumerRebalanceListener,
-                    readWriteLock.readLock(),
+                    processorsProcessingController,
                     collection
             );
 

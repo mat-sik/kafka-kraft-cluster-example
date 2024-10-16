@@ -1,5 +1,6 @@
 package com.github.mat_sik.kafka_consumer.consumer;
 
+import com.github.mat_sik.kafka_consumer.consumer.controller.ListenerProcessingController;
 import com.github.mat_sik.kafka_consumer.consumer.offset.ToCommitOffsetsHandler;
 import com.github.mat_sik.kafka_consumer.consumer.offset.UncommitedOffsetsHandler;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -12,7 +13,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.locks.Lock;
 import java.util.logging.Logger;
 
 public class ContinuousConsumerRebalanceListener implements ConsumerRebalanceListener {
@@ -20,20 +20,20 @@ public class ContinuousConsumerRebalanceListener implements ConsumerRebalanceLis
     private static final Logger LOGGER = Logger.getLogger(ContinuousConsumerRebalanceListener.class.getName());
 
     private final Consumer<String, String> consumer;
-    private final Lock writeLock;
+    private final ListenerProcessingController processingController;
     private final ToCommitQueueHandler toCommitQueueHandler;
     private final ToCommitOffsetsHandler toCommitOffsetsHandler;
     private final UncommitedOffsetsHandler uncommitedOffsetsHandler;
 
     public ContinuousConsumerRebalanceListener(
             Consumer<String, String> consumer,
-            Lock writeLock,
+            ListenerProcessingController processingController,
             ToCommitQueueHandler toCommitQueueHandler,
             ToCommitOffsetsHandler toCommitOffsetsHandler,
             UncommitedOffsetsHandler uncommitedOffsetsHandler
     ) {
         this.consumer = consumer;
-        this.writeLock = writeLock;
+        this.processingController = processingController;
         this.toCommitQueueHandler = toCommitQueueHandler;
         this.toCommitOffsetsHandler = toCommitOffsetsHandler;
         this.uncommitedOffsetsHandler = uncommitedOffsetsHandler;
@@ -43,13 +43,15 @@ public class ContinuousConsumerRebalanceListener implements ConsumerRebalanceLis
     public void onPartitionsRevoked(Collection<TopicPartition> collection) {
         try {
             LOGGER.info("### onPartitionsRevoked CALLED ###");
-            writeLock.lockInterruptibly();
+            processingController.shouldNotProcess();
+            processingController.lock();
             LOGGER.info("### onPartitionsRevoked GOT LOCK ###");
             try {
                 Optional<Map<TopicPartition, OffsetAndMetadata>> toCommitOffsets = toCommitQueueHandler.poolReadyToCommitOffsets();
                 toCommitOffsets.ifPresent(consumer::commitSync);
             } finally {
-                writeLock.unlock();
+                processingController.shouldProcess();
+                processingController.unlock();
                 LOGGER.info("### onPartitionsRevoked DONE ###");
             }
         } catch (InterruptedException ex) {
@@ -59,15 +61,12 @@ public class ContinuousConsumerRebalanceListener implements ConsumerRebalanceLis
 
     @Override
     public void onPartitionsAssigned(Collection<TopicPartition> collection) {
-        LOGGER.info("### onPartitionsAssigned CALLED ###");
-
         Set<TopicPartition> topicPartitions = new HashSet<>(collection);
         Map<TopicPartition, OffsetAndMetadata> committed = consumer.committed(topicPartitions);
 
         uncommitedOffsetsHandler.updateUncommittedOffsets(topicPartitions);
 
         toCommitOffsetsHandler.updateCommittedOffsets(committed);
-        LOGGER.info("### onPartitionsAssigned DONE ###");
     }
 
 }
