@@ -7,6 +7,7 @@ import org.apache.kafka.common.TopicPartition;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.concurrent.Semaphore;
 import java.util.logging.Logger;
 
@@ -85,29 +86,14 @@ public class ToCommitOffsetsHandler {
             return Optional.empty();
         }
 
-        Optional<Map<Long, Long>> uncommitedOffsetRanges = uncommitedOffsetsHandler.getOffsetRanges(topicPartition);
-        if (uncommitedOffsetRanges.isEmpty()) {
+        OptionalLong greatestOffset = uncommitedOffsetsHandler.getGreatestReadyToCommitOffset(topicPartition, offset);
+        if (greatestOffset.isEmpty()) {
             return Optional.empty();
         }
-        Map<Long, Long> offsetRanges = uncommitedOffsetRanges.get();
+        long greatestOffsetValue = greatestOffset.getAsLong();
 
-        long greatestOffset = getGreatestReadyToCommitOffset(offsetRanges, offset);
+        toCommitOffsets.put(topicPartition, greatestOffsetValue);
 
-        toCommitOffsets.put(topicPartition, greatestOffset);
-
-        return Optional.of(new OffsetAndMetadata(greatestOffset));
-    }
-
-    private long getGreatestReadyToCommitOffset(Map<Long, Long> offsetRanges, long firstCommitOffset) {
-        long greatestOffset = firstCommitOffset;
-        for (; ; ) {
-            Long nextOffset = offsetRanges.get(greatestOffset);
-            if (nextOffset == null) {
-                break;
-            }
-            offsetRanges.remove(greatestOffset);
-            greatestOffset = nextOffset + 1;
-        }
-        return greatestOffset;
+        return Optional.of(new OffsetAndMetadata(greatestOffsetValue));
     }
 }

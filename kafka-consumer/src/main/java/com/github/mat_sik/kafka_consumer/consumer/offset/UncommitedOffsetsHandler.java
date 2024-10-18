@@ -50,11 +50,36 @@ public class UncommitedOffsetsHandler {
         return OptionalLong.of(offsetRange.first());
     }
 
-    public Optional<Map<Long, Long>> getOffsetRanges(TopicPartition topicPartition) {
+    public OptionalLong getGreatestReadyToCommitOffset(TopicPartition topicPartition, long offset) {
+        Optional<Map<Long, Long>> uncommitedOffsetRanges = getOffsetRanges(topicPartition);
+        if (uncommitedOffsetRanges.isEmpty()) {
+            return OptionalLong.empty();
+        }
+        Map<Long, Long> offsetRanges = uncommitedOffsetRanges.get();
+
+        long greatestOffset = getGreatestReadyToCommitOffset(offsetRanges, offset);
+
+        return OptionalLong.of(greatestOffset);
+    }
+
+    private Optional<Map<Long, Long>> getOffsetRanges(TopicPartition topicPartition) {
         Map<Long, Long> offsetRanges = uncommittedOffsets.get(topicPartition);
         if (offsetRanges == null) {
             LOGGER.severe("Unregistered TopicPartition");
         }
         return Optional.ofNullable(offsetRanges);
+    }
+
+    private static long getGreatestReadyToCommitOffset(Map<Long, Long> offsetRanges, long firstCommitOffset) {
+        long greatestOffset = firstCommitOffset;
+        for (; ; ) {
+            Long nextOffset = offsetRanges.get(greatestOffset);
+            if (nextOffset == null) {
+                break;
+            }
+            offsetRanges.remove(greatestOffset);
+            greatestOffset = nextOffset + 1;
+        }
+        return greatestOffset;
     }
 }
