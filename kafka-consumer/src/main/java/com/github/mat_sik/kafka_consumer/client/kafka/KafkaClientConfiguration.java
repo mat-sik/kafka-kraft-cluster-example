@@ -40,7 +40,7 @@ public class KafkaClientConfiguration {
         consumerProperties.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
 
         // if producer started before every consumer, and there is no commited offset, start from 0, so that not
-        // to loose any records.
+        // to lose any records.
         consumerProperties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 
         return consumerProperties;
