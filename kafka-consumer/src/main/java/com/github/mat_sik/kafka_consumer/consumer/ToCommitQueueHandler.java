@@ -57,10 +57,7 @@ public class ToCommitQueueHandler {
             OffsetAndMetadata offsetAndMetadata
     ) {
         collector.compute(topicPartition, (_, persistedOffsetAndMetadata) -> {
-            if (persistedOffsetAndMetadata == null) {
-                return offsetAndMetadata;
-            }
-            if (offsetAndMetadata.offset() > persistedOffsetAndMetadata.offset()) {
+            if (persistedOffsetAndMetadata == null || (offsetAndMetadata.offset() > persistedOffsetAndMetadata.offset())) {
                 return offsetAndMetadata;
             }
             return persistedOffsetAndMetadata;
